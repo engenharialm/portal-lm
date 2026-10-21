@@ -709,7 +709,18 @@ function renderDiario(){
     </div>`;
 
   if (naoTrab(w)[ds]) h += `<div class="info">Este dia está marcado como <b>não trabalhado</b> na programação da semana.</div>`;
-  if (!grupos.length){
+  if (S.ext.obraId !== S.obraId) loadExtras().then(() => { if (S.tab === "diario" && !estrutura(S.week).length) renderDiario(); }).catch(console.error);
+  const plD = S.ext.obraId === S.obraId ? plano() : null;
+  if (!grupos.length && plD){
+    const iniD = proxUtil(plD.inicio, plD.feriados || FERIADOS_PADRAO);
+    if (addDays(S.semana, 6) < iniD)
+      h += `<div class="info">A obra começa em <b>${fmtBR(iniD)}</b> (Planejamento). O diário fica disponível a partir da semana de início. <button class="btn peq" data-irinicio>Ir para o início da obra</button></div>`;
+    else {
+      const n = (programacaoDoPlano(S.semana) || []).length;
+      h += `<div class="info">A <b>Programação desta semana</b> ainda não foi salva${n ? ` — o Planejamento prevê <b>${n} serviço(s)</b> para ela` : ""}. Abra a programação, confira e salve para lançar o realizado aqui.
+        <button class="btn pri peq" data-abreprog>Abrir Programação da semana</button></div>`;
+    }
+  } else if (!grupos.length){
     h += `<div class="info">Não há atividades programadas para a semana de ${fmtBR(S.semana)}. Cadastre em <b>Programação da semana</b>
       (ou lance abaixo como atividade não programada).</div>`;
   } else {
@@ -832,12 +843,24 @@ function renderProg(){
   // carrega o contrato da obra para poder ligar as atividades aos itens (usado na medição)
   if (S.ext.obraId !== S.obraId) loadExtras().then(() => { if (S.tab === "prog" && S.draft){ syncDraftFromDom(); renderProg(); } }).catch(console.error);
   const itensC = S.ext.obraId === S.obraId ? (S.ext.contrato?.itens || []) : [];
+  const pl = S.ext.obraId === S.obraId ? plano() : null;
+  const semVazia = !Object.keys(S.week.atividades || {}).length;
+  if (pl && semVazia && !S.draft.length && S.draftSugSem !== S.semana){
+    S.draftSugSem = S.semana;
+    const sug = programacaoDoPlano(S.semana) || [];
+    if (sug.length){ S.draft = sug; S.draftSug = true; }
+  }
+  const iniObra = pl ? proxUtil(pl.inicio, pl.feriados || FERIADOS_PADRAO) : null;
   const grupos = [...new Set([...GRUPOS_PADRAO, ...S.draft.map(a => a.grupo).filter(Boolean)])];
   let h = weekbar();
   h += `<div class="row" style="margin-bottom:12px">
       <button class="btn peq" id="copiarAnt">Copiar atividades da semana anterior</button>
       <button class="btn peq" id="progDoPlano" title="Traz os serviços que o Planejamento prevê para esta semana, já ligados ao contrato">Trazer do planejamento</button>
       <span style="color:var(--mut);font-size:13px">Preencha a quantidade programada em cada dia. O realizado é lançado no Diário do dia.</span></div>`;
+  if (pl && iniObra && addDays(S.semana, 6) < iniObra)
+    h += `<div class="info">A obra começa em <b>${fmtBR(iniObra)}</b> (Planejamento). Esta semana é anterior ao início. <button class="btn peq" data-irinicio>Ir para a semana de início</button></div>`;
+  else if (S.draftSug && S.draftSugSem === S.semana && semVazia && S.draft.length)
+    h += `<div class="info"><b>Sugestão do Planejamento:</b> ${S.draft.length} serviço(s) previstos para esta semana, já ligados ao contrato (quantidade contratada ÷ dias da tarefa). Ajuste o que for preciso e clique em <b>Salvar programação</b> — só depois disso o Diário do dia libera o lançamento.</div>`;
   h += `<div class="ntchips"><span style="font-size:13px;color:var(--mut)">Dia não trabalhado (fica cinza no Excel):</span>
     ${DIAS.map((dn,d) => `<button data-nt="${d}" class="${S.draftNT[d]?"on":""}">${dn} ${fmtCurto(addDays(S.semana,d))}</button>`).join("")}</div>`;
   h += `<datalist id="grupos">${grupos.map(g => `<option value="${esc(g)}">`).join("")}</datalist>`;
@@ -3068,6 +3091,12 @@ document.addEventListener("click", async ev => {
     }
     if (t.id === "plSalvar"){ const p = syncPlano(); if (p) await salvarPlano(p); return; }
     if (t.id === "plMsp"){ exportarMSProject(); return; }
+    if (t.hasAttribute("data-irinicio")){
+      const pl = plano(); if (!pl) return;
+      const ini = proxUtil(pl.inicio, pl.feriados || FERIADOS_PADRAO);
+      S.semana = mondayOf(ini); S.dia = ini; S.refSemana = null; await loadWeek(); render(); return;
+    }
+    if (t.hasAttribute("data-abreprog")){ document.querySelector('nav button[data-tab="prog"]').click(); return; }
     if (t.id === "progDoPlano"){
       if (S.ext.obraId !== S.obraId) await loadExtras();
       const novas = programacaoDoPlano(S.semana);
