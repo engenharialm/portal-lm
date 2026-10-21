@@ -775,8 +775,10 @@ function renderDiario(){
   h += `</div></div>`;
 
   h += `<div class="card"><h3>Observações do dia</h3><textarea id="obsInp" placeholder="Ocorrências, equipamento parado, falta de material, interferências...">${esc((w.obs||{})[ds] || "")}</textarea></div>`;
+  h += cardFotosDia();
   el.innerHTML = h;
   setSavebar(`<button class="btn pri" id="salvarDia">Salvar diário de ${fmtCurto(S.dia)}</button>`);
+  desenhaFotosDia().catch(e => { console.error(e); const b = $("#fotosDiaGrade"); if (b) b.innerHTML = `<div class="vazio">Erro ao carregar fotos: ${esc(e.message)}</div>`; });
 }
 
 function addNpRow(){
@@ -3625,9 +3627,41 @@ function comprimeFoto(arq){
     fr.onerror = rej; fr.readAsDataURL(arq);
   });
 }
+// fotos lançadas no Diário do dia (obraDia = obra_data) — entram no relatório fotográfico da medição do período
+S.fotosDia = { chave:null, lista:[] };
+const chaveDia = () => S.obraId + "_" + S.dia;
+async function carregaFotosDia(){
+  const k = chaveDia(); if (S.fotosDia.chave === k) return S.fotosDia.lista;
+  const l = await store.list(COL_FOTO, "obraDia", k);
+  S.fotosDia = { chave:k, lista: l.sort((a,b) => (a.criadoEm || "").localeCompare(b.criadoEm || "")) };
+  return S.fotosDia.lista;
+}
+function cardFotosDia(){
+  return `<div class="card" id="fotosDiaCard"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Fotos do dia</h3>
+      <label class="btn pri peq" style="cursor:pointer">📷 + Fotos<input type="file" id="fotoDiaAdd" accept="image/*" multiple hidden></label></div>
+    <p class="nota">As fotos do dia vão sozinhas para o <b>relatório fotográfico</b> da medição deste período (modelo LM, 4 por folha). Escolha a atividade e a estaca de cada uma.</p>
+    <div id="fotosDiaGrade" class="fotos"><div class="vazio">Carregando fotos...</div></div></div>`;
+}
+async function desenhaFotosDia(){
+  const box = $("#fotosDiaGrade"); if (!box) return;
+  const l = await carregaFotosDia(); if (!$("#fotosDiaGrade")) return;
+  const acts = estrutura(S.week).flatMap(g => g.acts).concat(naoProgList(S.week).map(a => ({ ...a, np:true })));
+  const opts = sel => `<option value="">— atividade —</option>${acts.map(a => { const ic = S.ext.contrato?.itens?.find(i => i.id === a.itemContrato)?.item;
+    return `<option value="${a.id}" ${sel === a.id ? "selected" : ""}>${esc((ic ? ic + " — " : "") + a.descricao.slice(0,60))}${a.np ? " (não prog.)" : ""}</option>`; }).join("")}`;
+  box.innerHTML = l.length ? l.map(f => `<div class="foto" data-fid="${f.id}"><img src="${f.dataUrl}" alt="">
+      <select data-fa="1">${opts(f.atividade)}</select>
+      <input data-ff="servico" placeholder="Legenda do serviço" value="${esc(f.servico || "")}">
+      <div class="row" style="gap:6px"><input data-ff="estaca" placeholder="Estaca" value="${esc(f.estaca || "")}" style="flex:1"><button class="x" data-fotorm="${f.id}" title="Excluir foto">✕</button></div></div>`).join("")
+    : `<div class="vazio">Nenhuma foto neste dia. Use “📷 + Fotos”.</div>`;
+}
 async function carregaFotos(m){
   if (S.fotosMed.medId === m.id) return S.fotosMed.lista;
-  const l = await store.list(COL_FOTO, "medicaoId", m.id);
+  // fotos da própria medição + fotos do Diário de cada dia do período
+  const dias = []; for (let d = m.inicio; d <= m.fim; d = addDays(d, 1)) dias.push(d);
+  const doDiario = (await Promise.all(dias.map(d => store.list(COL_FOTO, "obraDia", m.obraId + "_" + d)))).flat();
+  const l0 = await store.list(COL_FOTO, "medicaoId", m.id);
+  const vistos = new Set(), l = [];
+  for (const f of [...l0, ...doDiario]) if (!vistos.has(f.id)){ vistos.add(f.id); l.push(f); }
   S.fotosMed = { medId:m.id, lista: l.sort((a,b) => (a.data || "").localeCompare(b.data || "") || (a.criadoEm || "").localeCompare(b.criadoEm || "")) };
   return S.fotosMed.lista;
 }
@@ -3643,14 +3677,14 @@ async function desenhaFotos(m){
   const l = await carregaFotos(m); if (!$("#fotosGrade")) return;
   const c = S.ext.contrato;
   const opts = sel => `<option value="">— serviço —</option>${c.itens.map(i => `<option value="${i.id}" ${sel === i.id ? "selected" : ""}>${esc(i.item)} — ${esc(i.descricao.slice(0,55))}</option>`).join("")}`;
-  box.innerHTML = l.length ? l.map(f => `<div class="foto" data-fid="${f.id}"><img src="${f.dataUrl}" alt="">
+  box.innerHTML = l.length ? l.map(f => `<div class="foto" data-fid="${f.id}"><img src="${f.dataUrl}" alt="">${f.origem === "diario" ? `<span class="chip" style="--c:#2BFF9A;align-self:flex-start">do Diário de ${fmtBR(f.data)}</span>` : ""}
       <select data-ff="item">${opts(f.item)}</select>
       <input data-ff="servico" placeholder="Legenda do serviço" value="${esc(f.servico || "")}">
       <div class="row" style="gap:6px"><input type="date" data-ff="data" value="${f.data || ""}"><input data-ff="estaca" placeholder="Estaca" value="${esc(f.estaca || "")}" style="width:90px"><button class="x" data-fotorm="${f.id}" title="Excluir foto">✕</button></div></div>`).join("")
-    : `<div class="vazio">Nenhuma foto nesta medição ainda.</div>`;
+    : `<div class="vazio">Nenhuma foto ainda. As fotos lançadas no Diário do dia dentro do período entram aqui sozinhas.</div>`;
 }
 async function salvaCampoFoto(div){
-  const f = S.fotosMed.lista.find(x => x.id === div.dataset.fid); if (!f) return;
+  const f = S.fotosMed.lista.find(x => x.id === div.dataset.fid) || S.fotosDia.lista.find(x => x.id === div.dataset.fid); if (!f) return;
   div.querySelectorAll("[data-ff]").forEach(i => f[i.dataset.ff] = i.value.trim());
   if (f.item && !f.servico){ const it = S.ext.contrato.itens.find(i => i.id === f.item); if (it){ f.servico = it.descricao.toUpperCase(); div.querySelector('[data-ff="servico"]').value = f.servico; } }
   await store.set(COL_FOTO, f.id, f);
@@ -3760,7 +3794,9 @@ document.addEventListener("click", async ev => {
     if (t.id === "medMemXls"){ await exportarMemoria(); return; }
     if (t.id === "fotoXls"){ await exportarFotosExcel(); return; }
     if (t.id === "fotoPdf"){ await exportarFotosPdf(); return; }
-    if (t.dataset.fotorm){ if (!confirm("Excluir esta foto?")) return; await store.del(COL_FOTO, t.dataset.fotorm); S.fotosMed.lista = S.fotosMed.lista.filter(f => f.id !== t.dataset.fotorm); desenhaFotos(medAtual()); return; }
+    if (t.dataset.fotorm){ if (!confirm("Excluir esta foto?")) return; await store.del(COL_FOTO, t.dataset.fotorm);
+      S.fotosMed.lista = S.fotosMed.lista.filter(f => f.id !== t.dataset.fotorm); S.fotosDia.lista = S.fotosDia.lista.filter(f => f.id !== t.dataset.fotorm);
+      if ($("#fotosDiaGrade")) desenhaFotosDia(); if ($("#fotosGrade")) desenhaFotos(medAtual()); return; }
   } catch(e){ console.error(e); toast("Erro: " + e.message, true); }
 });
 document.addEventListener("change", async ev => {
@@ -3769,6 +3805,28 @@ document.addEventListener("change", async ev => {
       syncMedDom(); const m = S.medDraft; m.memoriaTipo ||= {}; m.memoriaTipo[ev.target.dataset.memtipo] = ev.target.value;
       const ls = m.memoria?.[ev.target.dataset.memtipo]; if (ls?.length) m.qtd[ev.target.dataset.memtipo] = somaMem(ls, ev.target.value);
       renderMedEditor(); return;
+    }
+    if (ev.target.id === "fotoDiaAdd" && ev.target.files.length){
+      const arqs = [...ev.target.files]; ev.target.value = "";
+      toast(`Enviando ${arqs.length} foto(s)...`);
+      for (const a of arqs){
+        const { dataUrl } = await comprimeFoto(a);
+        const dims = await new Promise(r => { const im = new Image(); im.onload = () => r([im.naturalWidth, im.naturalHeight]); im.src = dataUrl; });
+        const f = { id:uid(), obraId:S.obraId, obraDia:chaveDia(), data:S.dia, origem:"diario", medicaoId:null, item:"", atividade:"", servico:"", estaca:"",
+                    dataUrl, w:dims[0], hh:dims[1], criadoEm:agoraIso(), por:S.nome || "" };
+        await store.set(COL_FOTO, f.id, f); S.fotosDia.lista.push(f);
+      }
+      S.fotosMed.medId = null;   // a medição recarrega com as fotos novas
+      desenhaFotosDia(); toast(`${arqs.length} foto(s) do dia incluída(s). Escolha a atividade e a estaca.`); return;
+    }
+    if (ev.target.dataset?.fa){
+      const div = ev.target.closest(".foto[data-fid]"), f = S.fotosDia.lista.find(x => x.id === div.dataset.fid); if (!f) return;
+      const acts = estrutura(S.week).flatMap(g => g.acts).concat(naoProgList(S.week));
+      const a = acts.find(x => x.id === ev.target.value);
+      f.atividade = a?.id || ""; f.item = a?.itemContrato || "";
+      if (a){ f.servico = a.descricao.toUpperCase(); div.querySelector('[data-ff="servico"]').value = f.servico; }
+      div.querySelectorAll("[data-ff]").forEach(i => f[i.dataset.ff] = i.value.trim());
+      await store.set(COL_FOTO, f.id, f); return;
     }
     if (ev.target.id === "fotoAdd" && ev.target.files.length){
       const m = medAtual(), arqs = [...ev.target.files]; ev.target.value = "";
