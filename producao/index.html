@@ -174,6 +174,10 @@
   .rqlin input,.rqlin select{padding:8px;border:1px solid var(--borda);border-radius:8px;min-width:0}
   @media (max-width:700px){ .rqlin,.rqlin.cot{grid-template-columns:1fr 1fr} .rqlin [data-f=descricao],.rqlin select,#ctForn,#ctObs{grid-column:1/-1} }
   .ic{margin-top:8px}
+  table.hist input.hq{width:62px;padding:6px}
+  table.hist input.hc{width:110px;padding:6px}
+  table.hist select{padding:6px;border:1px solid var(--borda);border-radius:8px}
+  table.hist input::placeholder{color:#9aa3b5}
   .rqlin2{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,2fr) 110px 80px 36px;gap:6px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--borda)}
   .rqlin2 select,.rqlin2 input{padding:8px;border:1px solid var(--borda);border-radius:8px;min-width:0;width:100%}
   .rqlin2 [data-f=descricao]{grid-column:1/-1;grid-row:2}
@@ -316,6 +320,8 @@
   .btn.on{background:linear-gradient(90deg,var(--lm-acc2),var(--lm-violet));border:none}
   .dados b{color:var(--lm-text)}
   .rqlin2{border-bottom-color:var(--lm-line)}
+  table.hist select{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
+  table.hist input::placeholder{color:#5f7890}
   .rqlin2 select,.rqlin2 input,#insBusca{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
   .rqlin2 .orc{background:rgba(43,255,154,.07);color:var(--lm-muted)}
   .rqlin2 .orc b{color:var(--lm-text)}
@@ -355,6 +361,7 @@
   <button data-tab="semana">Semana / Exportar</button>
   <button data-tab="contrato">Contrato</button>
   <button data-tab="medicoes">Medições</button>
+  <button data-tab="recursos">Recursos</button>
   <button data-tab="compras">Compras</button>
   <button data-tab="obras">Cadastro</button>
 </nav>
@@ -365,6 +372,7 @@
   <section id="v-semana" class="view"></section>
   <section id="v-contrato" class="view"></section>
   <section id="v-medicoes" class="view"></section>
+  <section id="v-recursos" class="view"></section>
   <section id="v-compras" class="view"></section>
   <section id="v-obras" class="view"></section>
 </main>
@@ -885,7 +893,7 @@ function aplicaAcessoUI(){
 }
 function setSavebar(html){ $("#savebar").innerHTML = html; $("#savebar").style.display = html ? "flex" : "none"; }
 function render(){
-  ({ diario:renderDiario, prog:renderProg, semana:renderSemana, obras:renderObras, contrato:renderContrato, medicoes:renderMedicoes, compras:renderCompras })[S.tab]();
+  ({ diario:renderDiario, prog:renderProg, semana:renderSemana, obras:renderObras, contrato:renderContrato, medicoes:renderMedicoes, recursos:renderRecursos, compras:renderCompras })[S.tab]();
 }
 
 /* ------------------------------- exportação ------------------------------- */
@@ -2277,6 +2285,156 @@ document.addEventListener("input", ev => { if (ev.target.classList?.contains("mq
 document.addEventListener("change", ev => {
   if (ev.target.id === "reqFiltro"){ S.reqFiltro = ev.target.value; renderCompras(); }
 });
+
+/* ======================================================================
+   RECURSOS — mão de obra e equipamentos
+   Orçado: horas e custo de cada função/equipamento nas composições (CPU),
+   distribuídos pelos meses do cronograma. Planejado: histograma mensal
+   (quantas pessoas / equipamentos em cada mês), montado pelo engenheiro.
+   1 = um recurso o mês inteiro (176 h); 0,5 = meio mês.
+   ====================================================================== */
+const H_MES = 176;
+S.recTipo = "mo";
+S.recMostrarPeq = false;
+
+// horas e custo orçados de cada recurso, com a distribuição mensal pelo cronograma
+function recursosOrcados(c, tipo){
+  const n = c.cronograma?.meses || c.prazoMeses || 1;
+  const map = {};
+  for (const it of (c.itens || [])){
+    const pcts = c.cronograma?.metas?.[norm(it.grupo)] || Array.from({ length:n }, () => 100 / n);
+    for (const r of (it[tipo] || [])){
+      const o = map[r.n] ||= { nome:r.n, h:0, c:0, mes:Array(n).fill(0), servicos:[] };
+      o.h += r.h; o.c += r.c; o.servicos.push(it.item);
+      for (let m = 0; m < n; m++) o.mes[m] += r.h * (Number(pcts[m]) || 0) / 100;
+    }
+  }
+  return map;
+}
+function histDraft(){
+  const c = S.ext.contrato;
+  if (!S.histDraft || S.histDraft._obra !== S.obraId) S.histDraft = { _obra:S.obraId, ...clone(c.histograma || { mo:{}, eq:{} }) };
+  S.histDraft.mo ||= {}; S.histDraft.eq ||= {};
+  return S.histDraft;
+}
+function renderRecursos(){
+  const el = $("#v-recursos");
+  if (!S.obraId){ el.innerHTML = semObra(); setSavebar(""); return; }
+  if (precisaCarregar(el, renderRecursos)) return;
+  const c = S.ext.contrato;
+  if (!c?.itens?.some(i => i.mo?.length || i.eq?.length)){
+    el.innerHTML = `<div class="card vazio">Esta obra ainda não tem as horas de mão de obra e equipamento das composições.<br>Elas vêm das composições de custo (CPU) da proposta — envie o PDF/Excel das composições para cadastrar.</div>`;
+    setSavebar(""); return;
+  }
+  const n = c.cronograma?.meses || c.prazoMeses || 1;
+  const hd = histDraft(), tipo = S.recTipo;
+  const resumo = t => {
+    const orc = recursosOrcados(c, t), pl = hd[t] || {};
+    const nomes = new Set([...Object.keys(orc), ...Object.keys(pl)]);
+    let co = 0, cp = 0, ho = 0, hp = 0;
+    for (const nome of nomes){
+      const o = orc[nome], p = pl[nome] || {}, ch = o && o.h ? o.c / o.h : 0;
+      const cm = p.custoMes != null ? p.custoMes : ch * H_MES;
+      const q = (p.qtd || []).reduce((s,x) => s + (Number(x) || 0), 0);
+      co += o?.c || 0; ho += o?.h || 0; cp += q * cm; hp += q * H_MES;
+    }
+    return { co:r2(co), cp:r2(cp), ho, hp };
+  };
+  const rMO = resumo("mo"), rEQ = resumo("eq");
+  const temPlano = r => r.cp > 0;
+  let h = `<div class="kpi">
+    <div><b>${fmtR(rMO.co)}</b><span>Mão de obra orçada · ${fmtQ(Math.round(rMO.ho))} h</span></div>
+    <div><b class="${temPlano(rMO) && rMO.cp > rMO.co ? "neg" : ""}">${temPlano(rMO) ? fmtR(rMO.cp) : "—"}</b><span>Mão de obra planejada${temPlano(rMO) ? " · " + fmtP(rMO.cp / rMO.co) + " do orçado" : ""}</span></div>
+    <div><b>${fmtR(rEQ.co)}</b><span>Equipamento orçado · ${fmtQ(Math.round(rEQ.ho))} h</span></div>
+    <div><b class="${temPlano(rEQ) && rEQ.cp > rEQ.co ? "neg" : ""}">${temPlano(rEQ) ? fmtR(rEQ.cp) : "—"}</b><span>Equipamento planejado${temPlano(rEQ) ? " · " + fmtP(rEQ.cp / rEQ.co) + " do orçado" : ""}</span></div>
+  </div>`;
+  h += `<div class="card"><div class="row" style="justify-content:space-between">
+      <span class="row"><button class="btn peq ${tipo==="mo"?"on":""}" data-rectipo="mo">Mão de obra</button><button class="btn peq ${tipo==="eq"?"on":""}" data-rectipo="eq">Equipamentos</button></span>
+      <span class="row"><label class="row" style="gap:6px"><input type="checkbox" id="recPeq" ${S.recMostrarPeq ? "checked" : ""}> mostrar recursos com menos de 20 h orçadas</label>
+      ${ehGeral() ? `<button class="btn peq" id="recSugestao">Preencher vazios com a sugestão</button><button class="btn peq" id="recAdd">+ Recurso fora do orçamento</button>` : ""}</span></div>
+    <p class="nota">Histograma: quantos ${tipo === "mo" ? "profissionais de cada função" : "equipamentos de cada tipo"} em cada mês — <b>1</b> = um o mês inteiro (${H_MES} h), <b>0,5</b> = meio mês. O número cinza é a sugestão tirada das horas orçadas.
+      ${tipo === "eq" ? "No SICRO o custo horário do equipamento já inclui operador e combustível." : "Custo/mês = salário + encargos; vazio usa o custo horário da composição × " + H_MES + " h."}</p>`;
+  const orc = recursosOrcados(c, tipo), pl = hd[tipo];
+  const nomes = [...new Set([...Object.keys(orc), ...Object.keys(pl)])]
+    .filter(nm => S.recMostrarPeq || (orc[nm]?.h || 0) >= 20 || pl[nm])
+    .sort((a,b) => (orc[b]?.c || 0) - (orc[a]?.c || 0));
+  const ocultos = Object.keys(orc).length - nomes.filter(nm => orc[nm]).length;
+  const ro = !ehGeral();
+  h += `<div class="tbwrap"><table class="tb hist"><thead><tr><th class="l">${tipo === "mo" ? "Função" : "Equipamento"}</th><th>Horas orçadas</th><th>Custo orçado</th>
+    ${tipo === "eq" ? "<th>Tipo</th>" : ""}<th>Custo/mês por ${tipo === "mo" ? "pessoa" : "unidade"}</th>
+    ${Array.from({ length:n }, (_,k) => `<th>Mês ${k+1}${c.inicio ? `<br><small>${MESES[parseIso(addMeses(c.inicio,k)).getMonth()]}</small>` : ""}</th>`).join("")}
+    <th>Horas planej.</th><th>Custo planej.</th><th>Planej. / orçado</th></tr></thead><tbody>`;
+  let tot = { ho:0, co:0, hp:0, cp:0, mes:Array(n).fill(0) };
+  for (const nm of nomes){
+    const o = orc[nm], p = pl[nm] || {}, ch = o && o.h ? o.c / o.h : 0;
+    const cmPad = r2(ch * H_MES), cm = p.custoMes != null ? p.custoMes : cmPad;
+    const qtd = p.qtd || [];
+    const hp = qtd.reduce((s,x) => s + (Number(x) || 0), 0) * H_MES, cp = r2(qtd.reduce((s,x) => s + (Number(x) || 0), 0) * cm);
+    const rel = o?.c ? cp / o.c : null;
+    tot.ho += o?.h || 0; tot.co += o?.c || 0; tot.hp += hp; tot.cp += cp;
+    qtd.forEach((x,k) => tot.mes[k] += Number(x) || 0);
+    h += `<tr data-rec="${esc(nm)}" class="${!o ? "foraplan" : ""}"><td class="l" title="${o ? "Serviços: " + esc(o.servicos.join(", ")) : "Fora do orçamento"}">${esc(nm)}${!o ? `<br><span class="chip" style="--c:#FFC14D">fora do orçamento</span>` : ""}</td>
+      <td>${o ? fmtQ(Math.round(o.h*10)/10) : "—"}</td><td>${o ? fmtR(r2(o.c)) : "—"}</td>
+      ${tipo === "eq" ? `<td><select data-hf="tipo" ${ro?"disabled":""}><option value="proprio" ${p.tipo!=="locado"?"selected":""}>Próprio</option><option value="locado" ${p.tipo==="locado"?"selected":""}>Locado</option></select></td>` : ""}
+      <td><input class="hc" data-hf="custoMes" inputmode="decimal" placeholder="${cmPad ? fmtNum(cmPad) : "R$/mês"}" value="${p.custoMes != null ? fmtNum(p.custoMes) : ""}" ${ro?"disabled":""}></td>
+      ${Array.from({ length:n }, (_,k) => { const sug = o ? Math.round(o.mes[k] / H_MES * 10) / 10 : 0;
+        return `<td><input class="hq" data-m="${k}" inputmode="decimal" placeholder="${sug ? fmtNum(sug) : ""}" value="${qtd[k] ? fmtNum(qtd[k]) : ""}" ${ro?"disabled":""}></td>`; }).join("")}
+      <td>${hp ? fmtQ(Math.round(hp)) : "—"}</td><td>${cp ? fmtR(cp) : "—"}</td>
+      <td>${rel !== null && cp ? `<span class="${rel > 1.0001 ? "neg" : "pos"}">${fmtP(rel)}</span>` : (!o && cp ? `<span class="neg">extra</span>` : "—")}</td></tr>`;
+  }
+  h += `</tbody><tfoot><tr><td class="l">TOTAL</td><td>${fmtQ(Math.round(tot.ho))}</td><td>${fmtR(r2(tot.co))}</td>${tipo === "eq" ? "<td></td>" : ""}<td></td>
+    ${tot.mes.map(x => `<td>${x ? fmtNum(Math.round(x*10)/10) : "—"}</td>`).join("")}<td>${tot.hp ? fmtQ(Math.round(tot.hp)) : "—"}</td><td>${tot.cp ? fmtR(r2(tot.cp)) : "—"}</td>
+    <td>${tot.cp && tot.co ? `<span class="${tot.cp > tot.co ? "neg" : "pos"}">${fmtP(tot.cp/tot.co)}</span>` : "—"}</td></tr></tfoot></table></div>
+    ${ocultos > 0 && !S.recMostrarPeq ? `<p class="nota">${ocultos} recurso(s) com menos de 20 h orçadas estão ocultos.</p>` : ""}
+    <p class="nota">Orçado = horas das composições × quantidade contratada de cada serviço, distribuídas pelo cronograma (passe o mouse no nome para ver os serviços). Custos sem BDI.</p></div>`;
+  el.innerHTML = h;
+  setSavebar(ehGeral() ? `<button class="btn pri" id="recSalvar">Salvar histograma</button>` : "");
+}
+function syncHist(){
+  const hd = histDraft(), tipo = S.recTipo;
+  $$("#v-recursos tr[data-rec]").forEach(tr => {
+    const nm = tr.dataset.rec, p = hd[tipo][nm] ||= {};
+    const qtd = [...tr.querySelectorAll(".hq")].map(i => { const v = num(i.value); return v === null ? 0 : v; });
+    p.qtd = qtd.some(x => x) ? qtd : [];
+    const cmS = tr.querySelector(".hc").value.trim(); p.custoMes = cmS ? num(cmS) : null;
+    const tp = tr.querySelector('[data-hf="tipo"]'); if (tp) p.tipo = tp.value;
+    if (!p.qtd.length && p.custoMes == null && !p.extra && (!p.tipo || p.tipo === "proprio")) delete hd[tipo][nm];
+  });
+}
+document.addEventListener("click", async ev => {
+  const t = ev.target.closest("button"); if (!t) return;
+  try {
+    if (t.dataset.rectipo){ syncHist(); S.recTipo = t.dataset.rectipo; renderRecursos(); return; }
+    if (t.id === "recSugestao"){
+      syncHist();
+      const c = S.ext.contrato, orc = recursosOrcados(c, S.recTipo), hd = histDraft(), n = c.cronograma?.meses || c.prazoMeses || 1;
+      let k = 0;
+      for (const [nm, o] of Object.entries(orc)){
+        if (!S.recMostrarPeq && o.h < 20) continue;
+        const p = hd[S.recTipo][nm] ||= {};
+        if (p.qtd?.some(x => x)) continue;
+        p.qtd = Array.from({ length:n }, (_,m) => Math.round(o.mes[m] / H_MES * 10) / 10); k++;
+      }
+      renderRecursos(); toast(`${k} linha(s) preenchidas com a sugestão. Arredonde para o que vai realmente para a obra e salve.`); return;
+    }
+    if (t.id === "recAdd"){
+      const nm = (prompt(S.recTipo === "mo" ? "Função (ex.: VIGIA, MOTORISTA, ALMOXARIFE):" : "Equipamento (ex.: CAMINHONETE DE APOIO):") || "").trim().toUpperCase();
+      if (!nm) return;
+      syncHist(); const hd = histDraft(); hd[S.recTipo][nm] ||= { qtd:[], custoMes:null, extra:true };
+      renderRecursos(); return;
+    }
+    if (t.id === "recSalvar"){
+      syncHist();
+      const hd = histDraft(); const { _obra, ...hist } = hd;
+      const bad = Object.values(hist.mo).concat(Object.values(hist.eq)).some(p => (p.qtd || []).some(x => x < 0 || x === null));
+      if (bad){ toast("Há quantidade inválida.", true); return; }
+      const c = { ...S.ext.contrato, histograma:{ ...hist, atualizadoEm:agoraIso(), atualizadoPor:S.nome || "" } };
+      await store.set(COL_CONTR, S.obraId, c);
+      S.histDraft = null; await loadExtras(true); renderRecursos(); toast("Histograma salvo."); return;
+    }
+  } catch(e){ console.error(e); toast("Erro: " + e.message, true); }
+});
+document.addEventListener("change", ev => { if (ev.target.id === "recPeq"){ syncHist(); S.recMostrarPeq = ev.target.checked; renderRecursos(); } });
 
 async function carregaObras(){ S.obras = await store.list(COL_OBRAS); }
 function senhaValida(senha, id){
