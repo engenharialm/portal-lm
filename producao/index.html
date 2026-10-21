@@ -175,7 +175,11 @@
   @media (max-width:700px){ .rqlin,.rqlin.cot{grid-template-columns:1fr 1fr} .rqlin [data-f=descricao],.rqlin select,#ctForn,#ctObs{grid-column:1/-1} }
   .ic{margin-top:8px}
   tr.memrow > td{background:rgba(0,112,192,.04);padding:10px}
-  .mem .memt{margin-top:8px}
+  .mem .memt{margin-top:0;width:auto;min-width:100%}
+  .memwrap{overflow-x:auto;margin-top:8px;max-width:calc(100vw - 80px);position:sticky;left:0}
+  .mem{position:sticky;left:0;max-width:calc(100vw - 80px)}
+  .mem .memt td,.mem .memt th{padding:5px 6px;white-space:nowrap}
+  .mem .memt td:first-child{width:34px}
   .mem .memt input{width:auto;text-align:left;padding:5px 6px;border:1px solid var(--borda);border-radius:6px}
   .mem .memt td.mp,.mem .memt td.mt{font-weight:700}
   .fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:10px}
@@ -3498,10 +3502,10 @@ function memEditor(i, m, travada){
   const cel = (k, l, f, ph, w) => travada ? `<td>${esc(l[f] ?? "")}</td>` : `<td><input class="ml" data-k="${k}" data-f="${f}" value="${esc(l[f] ?? "")}" placeholder="${ph}" style="width:${w}px"></td>`;
   return `<div class="mem"><div class="row" style="justify-content:space-between"><b>Memória de cálculo — ${esc(i.item)} ${esc(i.descricao.slice(0,70))} (${esc(i.un)})</b>
       <small class="nota" style="margin:0">Parcial = Qtd × Comprimento × Largura × Altura (vazio conta 1). Sem comprimento, usa a distância entre as estacas (20 m por estaca; ex.: 12+5,50).</small></div>
-    <table class="tb memt" data-mi="${i.id}"><thead><tr><th class="l">Local / descrição</th><th>Est. inicial</th><th>Est. final</th><th>Compr. (m)</th><th>Largura (m)</th><th>Altura / esp. (m)</th><th>Qtd</th><th>Parcial (${esc(i.un)})</th><th></th></tr></thead><tbody>
-    ${linhas.map((l,k) => `<tr data-k="${k}">${cel(k,l,"local","ex.: Rua A, lado direito",220)}${cel(k,l,"ei","0+0,00",80)}${cel(k,l,"ef","12+5,00",80)}${cel(k,l,"c","",80)}${cel(k,l,"l","",70)}${cel(k,l,"h","",70)}${cel(k,l,"n","",56)}
-      <td class="mp">${fmtQ(parcialMem(l))}</td><td>${travada ? "" : `<button class="x" data-memrm="${k}" title="Remover linha">✕</button>`}</td></tr>`).join("")}
-    </tbody><tfoot><tr><td colspan="7" class="l">TOTAL MEDIDO NO ITEM</td><td class="mt">${fmtQ(somaMem(linhas))}</td><td></td></tr></tfoot></table>
+    <div class="memwrap"><table class="tb memt" data-mi="${i.id}"><thead><tr><th></th><th class="l">Local / descrição</th><th>Est. inicial</th><th>Est. final</th><th>Compr. (m)</th><th>Largura (m)</th><th>Alt./esp. (m)</th><th>Qtd</th><th>Parcial (${esc(i.un)})</th></tr></thead><tbody>
+    ${linhas.map((l,k) => `<tr data-k="${k}"><td>${travada ? "" : `<button class="x" data-memrm="${k}" title="Excluir esta linha">✕</button>`}</td>${cel(k,l,"local","ex.: Rua A, lado direito",190)}${cel(k,l,"ei","0+0,00",72)}${cel(k,l,"ef","12+5,00",72)}${cel(k,l,"c","",66)}${cel(k,l,"l","",60)}${cel(k,l,"h","",60)}${cel(k,l,"n","",46)}
+      <td class="mp">${fmtQ(parcialMem(l))}</td></tr>`).join("")}
+    </tbody><tfoot><tr><td></td><td colspan="7" class="l">TOTAL MEDIDO NO ITEM</td><td class="mt">${fmtQ(somaMem(linhas))}</td></tr></tfoot></table></div>
     ${travada ? "" : `<div class="row" style="margin-top:6px"><button class="btn peq" data-memadd="${i.id}">+ Linha</button>${linhas.length ? `<button class="btn peq" data-memlimpa="${i.id}">Tirar memória deste item</button>` : ""}</div>`}</div>`;
 }
 function syncMemDom(){
