@@ -1566,7 +1566,7 @@ function renderContrato(){
   const termino = c.inicio && c.prazoMeses ? addDays(addMeses(c.inicio, c.prazoMeses), -1) : null;
   const decorrido = c.inicio && termino ? Math.max(0, Math.min(1, diasEntre(c.inicio, hoje()) / Math.max(1, diasEntre(c.inicio, termino)))) : null;
   let h = `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Contrato — ${esc(o.nome)}</h3>
-      ${ehGeral() ? `<span class="row"><button class="btn peq" id="ctEditar">Editar dados</button><button class="btn peq" id="ctReimportar">Substituir planilha</button></span>` : ""}</div>
+      ${ehGeral() ? `<span class="row"><button class="btn peq" id="ctEditar">Editar dados</button><button class="btn peq" id="ctReimportar">Substituir planilha</button><button class="btn peq" id="ctEstourada" title="Custo sem BDI de cada item aberto em mão de obra, equipamento e material">Planilha estourada (Excel)</button></span>` : ""}</div>
     <div class="dados">
       <div><span>Contratante</span><b>${esc(c.contratante || "—")}</b></div>
       <div><span>Processo / edital</span><b>${esc(c.processo || "—")}</b></div>
@@ -3259,6 +3259,76 @@ document.addEventListener("click", async ev => {
     if (t.id === "mapaXls"){ await exportarMapaExcel(); return; }
     if (t.id === "mapaPdf"){ exportarMapaPdf(); return; }
   } catch(e){ console.error(e); toast("Erro: " + e.message, true); }
+});
+
+/* ---------------- planilha estourada: custo sem BDI em mão de obra, equipamento e material ---------------- */
+async function exportarEstourada(){
+  const c = S.ext.contrato, o = obraAtual();
+  const bdi = (Number(c.bdi) || 0) / 100;
+  const wb = new ExcelJS.Workbook(); wb.creator = "Obras LM"; wb.created = new Date();
+  const ws = wb.addWorksheet("Planilha estourada", { pageSetup:{ paperSize:9, orientation:"landscape", fitToPage:true, fitToWidth:1, fitToHeight:0 }, views:[{ state:"frozen", ySplit:6, xSplit:3 }] });
+  const AZ = "FF17375E", CL = "FFDCE6F1", MO = "FFFCE4D6", EQ = "FFE2EFDA", MT = "FFDDEBF7", MOEDA = '"R$" #,##0.00', PU4 = '"R$" #,##0.0000', Q = '#,##0.000;-#,##0.000;"-"';
+  const cols = ["ITEM","CÓDIGO","DESCRIÇÃO","UN","QUANTIDADE","PREÇO UNIT. (com BDI)","CUSTO UNIT. (sem BDI)","MÃO DE OBRA / UN","EQUIPAMENTO / UN","MATERIAL / UN","OUTROS / UN",
+                "MÃO DE OBRA TOTAL","EQUIPAMENTO TOTAL","MATERIAL TOTAL","OUTROS TOTAL","CUSTO TOTAL (sem BDI)","% MO","% EQUIP.","% MAT."];
+  const larg = [8,13,52,7,13,15,15,14,14,14,12,17,17,17,15,18,8,8,8];
+  larg.forEach((w,k) => ws.getColumn(k+1).width = w);
+  const N = cols.length;
+  ws.mergeCells(1,1,1,N); ws.getCell(1,1).value = "PLANILHA ESTOURADA — CUSTO SEM BDI POR MÃO DE OBRA, EQUIPAMENTO E MATERIAL";
+  sty(ws.getCell(1,1), { bold:true, size:14, fill:AZ, color:"FFFFFFFF" });
+  ws.mergeCells(2,1,2,N); ws.getCell(2,1).value = `Obra: ${o.nome} · ${c.contratante || ""} · ${[c.processo, c.numero].filter(Boolean).join(" · ")} · gerado em ${new Date().toLocaleString("pt-BR")}`;
+  sty(ws.getCell(2,1), { size:10, h:"left" });
+  ws.getCell(3,1).value = "BDI"; sty(ws.getCell(3,1), { bold:true, size:10, fill:CL });
+  ws.getCell(3,2).value = bdi; sty(ws.getCell(3,2), { bold:true, size:10, fmt:"0.00%" });
+  ws.mergeCells(3,3,3,N); ws.getCell(3,3).value = "Custo sem BDI = preço unitário ÷ (1 + BDI). Mão de obra (com encargos), equipamento (SICRO: inclui operador e combustível) e material vêm das composições de custo; “outros” = transporte de material, FIC e arredondamento.";
+  sty(ws.getCell(3,3), { size:9, h:"left", italic:true });
+  ws.getRow(3).height = 28;
+  cols.forEach((t,k) => { const cell = ws.getCell(6, k+1); cell.value = t;
+    sty(cell, { bold:true, size:9, fill: [7,11].includes(k) ? MO : [8,12].includes(k) ? EQ : [9,13].includes(k) ? MT : CL }); });
+  ws.getRow(6).height = 34;
+  let r = 7; const linhasItens = [], subt = [];
+  for (const g of gruposContrato(c)){
+    const r0 = r;
+    ws.mergeCells(r,1,r,5); ws.getCell(r,1).value = g.nome; for (let k = 1; k <= N; k++) sty(ws.getCell(r,k), { bold:true, size:10, fill:CL, h:"left" });
+    const rg = r; r++;
+    const ini = r;
+    for (const i of g.itens){
+      const cu = i.custoUn || {};
+      const v = [i.item, i.codigo || "", i.descricao, i.un, i.qtd, i.pu, { formula:`ROUND(F${r}/(1+$B$3),4)` },
+        cu.mo ?? null, cu.eq ?? null, cu.mat ?? null, { formula:`G${r}-H${r}-I${r}-J${r}` },
+        { formula:`ROUND(E${r}*H${r},2)` }, { formula:`ROUND(E${r}*I${r},2)` }, { formula:`ROUND(E${r}*J${r},2)` }, { formula:`ROUND(E${r}*K${r},2)` }, { formula:`ROUND(E${r}*G${r},2)` },
+        { formula:`IF(P${r}=0,0,L${r}/P${r})` }, { formula:`IF(P${r}=0,0,M${r}/P${r})` }, { formula:`IF(P${r}=0,0,N${r}/P${r})` }];
+      v.forEach((x,k) => { const cell = ws.getCell(r, k+1); cell.value = x;
+        sty(cell, { size:9, h: k === 2 ? "left" : "center", fmt: k === 4 ? Q : [5].includes(k) ? MOEDA : [6,7,8,9,10].includes(k) ? PU4 : [11,12,13,14,15].includes(k) ? MOEDA : k >= 16 ? "0.0%" : undefined }); });
+      linhasItens.push(r); r++;
+    }
+    const fim = r - 1;
+    ["L","M","N","O","P"].forEach(L => { const cell = ws.getCell(`${L}${rg}`); cell.value = { formula:`SUM(${L}${ini}:${L}${fim})` }; sty(cell, { bold:true, size:10, fill:CL, fmt:MOEDA }); });
+    [["Q","L"],["R","M"],["S","N"]].forEach(([L,B]) => { const cell = ws.getCell(`${L}${rg}`); cell.value = { formula:`IF(P${rg}=0,0,${B}${rg}/P${rg})` }; sty(cell, { bold:true, size:9, fill:CL, fmt:"0.0%" }); });
+    subt.push(rg);
+  }
+  // total geral
+  const rt = r + 1;
+  ws.mergeCells(rt,1,rt,11); ws.getCell(rt,1).value = "TOTAL (custo direto, sem BDI)"; for (let k = 1; k <= N; k++) sty(ws.getCell(rt,k), { bold:true, size:11, fill:AZ, color:"FFFFFFFF", h:"left" });
+  ["L","M","N","O","P"].forEach(L => { const cell = ws.getCell(`${L}${rt}`); cell.value = { formula: subt.map(x => `${L}${x}`).join("+") }; sty(cell, { bold:true, size:11, fill:AZ, color:"FFFFFFFF", fmt:MOEDA }); });
+  [["Q","L"],["R","M"],["S","N"]].forEach(([L,B]) => { const cell = ws.getCell(`${L}${rt}`); cell.value = { formula:`IF(P${rt}=0,0,${B}${rt}/P${rt})` }; sty(cell, { bold:true, size:10, fill:AZ, color:"FFFFFFFF", fmt:"0.0%" }); });
+  // resumo
+  const rs = rt + 2;
+  const resumo = [["Mão de obra", `L${rt}`, MO], ["Equipamento", `M${rt}`, EQ], ["Material", `N${rt}`, MT], ["Outros (transporte, FIC, arredondamento)", `O${rt}`, CL],
+    ["CUSTO DIRETO (sem BDI)", `P${rt}`, CL], ["BDI", `P${rt}*$B$3`, CL], ["PREÇO TOTAL (com BDI)", `P${rt}*(1+$B$3)`, CL], ["Valor do contrato", null, CL]];
+  ws.mergeCells(rs,3,rs,5); ws.getCell(rs,3).value = "RESUMO"; sty(ws.getCell(rs,3), { bold:true, size:11, fill:AZ, color:"FFFFFFFF" }); ["F","G"].forEach(L => sty(ws.getCell(`${L}${rs}`), { fill:AZ }));
+  resumo.forEach(([t, f, cor], k) => {
+    const row = rs + 1 + k;
+    ws.mergeCells(row,3,row,5); ws.getCell(row,3).value = t; sty(ws.getCell(row,3), { bold:k >= 4, size:10, fill:cor, h:"left" });
+    const cv = ws.getCell(row,6); cv.value = f ? { formula:f } : valorContrato(c); sty(cv, { bold:k >= 4, size:10, fmt:MOEDA });
+    const cp = ws.getCell(row,7); cp.value = k < 5 ? { formula:`IF($P$${rt}=0,0,F${row}/$P$${rt})` } : null; sty(cp, { size:10, fmt:"0.0%" });
+  });
+  const buf = await wb.xlsx.writeBuffer();
+  baixar(new Blob([buf], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `PLANILHA ESTOURADA - ${o.nome}.xlsx`);
+  toast("Planilha estourada gerada.");
+}
+document.addEventListener("click", async ev => {
+  const t = ev.target.closest("button"); if (!t || t.id !== "ctEstourada") return;
+  try { await exportarEstourada(); } catch(e){ console.error(e); toast("Erro: " + e.message, true); }
 });
 
 async function carregaObras(){ S.obras = await store.list(COL_OBRAS); }
