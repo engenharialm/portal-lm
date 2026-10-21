@@ -3126,7 +3126,7 @@ function renderPlanejamento(){
       ${fimContr ? `<div><b>${fmtBR(fimContr)}</b><span>Término contratual (${c.prazoMeses} meses)</span></div>` : ""}
       <div><b>${p.tarefas.filter(t => t.tipo !== "meta").length}</b><span>Tarefas</span></div></div>
     ${estoura ? `<p class="nota neg" style="margin:0 0 10px">Pelas produções a obra termina depois do prazo contratual: aumente as equipes dos serviços em vermelho.</p>` : ""}
-    <div class="tbwrap"><table class="tb gantt"><thead><tr><th>EAP</th><th class="l">Tarefa</th><th>Início</th><th>Fim</th><th>Dias úteis</th><th title="Produção de 1 equipe por dia (8 h), tirada da composição">Produção/dia<br><small>1 equipe</small></th><th>Equipes</th><th title="Quantidade ÷ (produção × equipes)">Dias<br>necessários</th><th>% medido</th><th class="gt"><div class="regua">${regua}</div></th></tr></thead><tbody>`;
+    <div class="tbwrap"><table class="tb gantt"><thead><tr><th>EAP</th><th class="l">Tarefa</th><th>Início</th><th>Fim</th><th>Dias úteis</th><th>Quantidade<br><small>do item</small></th><th title="Produção de 1 equipe por dia (8 h), tirada da composição">Produção/dia<br><small>1 equipe</small></th><th>Equipes</th><th title="Produção/dia × equipes × dias úteis planejados">Total no prazo<br><small>prod × eq × dias</small></th><th title="Quantidade ÷ (produção × equipes)">Dias<br>necessários</th><th>% medido</th><th class="gt"><div class="regua">${regua}</div></th></tr></thead><tbody>`;
   for (const t of p.tarefas){
     const it = c.itens.find(i => i.id === t.id);
     const pm = it && it.qtd ? Math.min(1, acumAnterior(it.id, Infinity) / it.qtd) : null;
@@ -3138,7 +3138,7 @@ function renderPlanejamento(){
       <td>${contaUteis(t.inicio, t.fim, fer)}</td>${meta ? celMeta(t, simT[t.id], fer) : celProd(t, it, fer, ro)}<td>${pm !== null && pm > 0 ? fmtP(pm) : (meta ? "" : "—")}</td>
       <td class="gt"><div class="trilho">${hojeX}<b class="${meta ? "bm" : t.paralela ? "bp" : ""}" style="left:${pos(t.inicio)}%;width:${Math.max(.6, pos(addDays(t.fim,1)) - pos(t.inicio))}%">${pm ? `<u style="width:${pm*100}%"></u>` : ""}</b></div></td></tr>`;
   }
-  h += `<tr class="g tot"><td></td><td class="l">TOTAL DA OBRA</td><td>${fmtBR(proxUtil(ini, fer))}</td><td>${fmtBR(fim)}</td><td>${duPlan}</td><td>—</td><td>—</td>
+  h += `<tr class="g tot"><td></td><td class="l">TOTAL DA OBRA</td><td>${fmtBR(proxUtil(ini, fer))}</td><td>${fmtBR(fim)}</td><td>${duPlan}</td><td>—</td><td>—</td><td>—</td><td>—</td>
       <td class="${duProd > duPlan ? "neg" : ""}" title="Pelas produções: ${fmtBR(proxUtil(iniProd, fer))} a ${fmtBR(fimProd)}"><b>${duProd}</b></td><td></td><td class="gt"></td></tr>`;
   h += `</tbody></table></div><p class="nota">Nos grupos e no total, “Dias necessários” é o prazo que o grupo / a obra teria se cada serviço durasse o que a produção × equipes exige, mantendo a sequência. Feriados considerados: ${fer.filter(x => x >= ini && x <= fim).map(fmtBR).join(", ") || "nenhum no período"}. A linha vertical marca hoje.</p></div>`;
   el.innerHTML = h;
@@ -3153,17 +3153,19 @@ function diasNecessarios(t, it){
 }
 // grupo: prazo pelas produções (da simulação) × planejado
 function celMeta(t, s, fer){
-  if (!s) return `<td>—</td><td>—</td><td>—</td>`;
+  if (!s) return `<td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>`;
   const dp = contaUteis(s.inicio, s.fim, fer), du = contaUteis(t.inicio, t.fim, fer);
-  return `<td>—</td><td>—</td><td class="${dp > du ? "neg" : ""}" title="Pelas produções: ${fmtBR(s.inicio)} a ${fmtBR(s.fim)}"><b>${dp}</b></td>`;
+  return `<td>—</td><td>—</td><td>—</td><td>—</td><td class="${dp > du ? "neg" : ""}" title="Pelas produções: ${fmtBR(s.inicio)} a ${fmtBR(s.fim)}"><b>${dp}</b></td>`;
 }
 function celProd(t, it, fer, ro){
-  if (t.tipo === "meta" || t.paralela || !it) return `<td>—</td><td>—</td><td>—</td>`;
+  if (t.tipo === "meta" || t.paralela || !it) return `<td>${it ? fmtQ(it.qtd) + `<br><small>${esc(it.un)}</small>` : "—"}</td><td>—</td><td>—</td><td>—</td><td>—</td>`;
   const pd = prodDiaTarefa(t, it), dn = diasNecessarios(t, it), du = contaUteis(t.inicio, t.fim, fer);
   const fonte = it.prodFonte ? `Composição: ${it.prodFonte}${it.prodH ? ` — ${fmtQ(it.prodH)} ${it.un}/h` : ""}` : "Sem produção na composição";
   const curto = dn !== null && dn > du;
-  return `<td title="${esc(fonte)}">${ro ? (pd ? fmtQ(pd) : "—") : `<input class="pp" inputmode="decimal" value="${pd ? fmtNum(pd) : ""}" placeholder="—" style="width:84px">`}<br><small>${esc(it.un)}/dia</small></td>
+  const tot = pd ? pd * (Number(t.equipes) || 1) * du : null, falta = tot !== null && tot < it.qtd - 1e-6;
+  return `<td>${fmtQ(it.qtd)}<br><small>${esc(it.un)}</small></td><td title="${esc(fonte)}">${ro ? (pd ? fmtQ(pd) : "—") : `<input class="pp" inputmode="decimal" value="${pd ? fmtNum(pd) : ""}" placeholder="—" style="width:84px">`}<br><small>${esc(it.un)}/dia</small></td>
     <td>${ro ? (t.equipes || 1) : `<input class="pe" inputmode="numeric" value="${t.equipes || 1}" style="width:46px">`}</td>
+    <td class="${falta ? "neg" : ""}" title="${tot !== null ? `${fmtQ(pd)} × ${Number(t.equipes) || 1} equipe(s) × ${du} dias = ${fmtQ(tot)} ${it.un} (${fmtP(tot / it.qtd)} da quantidade)${falta ? ` — faltam ${fmtQ(it.qtd - tot)} ${it.un}` : ""}` : ""}">${tot !== null ? `${fmtQ(tot)}<br><small>${fmtP(Math.min(9.99, tot / it.qtd))}</small>` : "—"}</td>
     <td class="${curto ? "neg" : ""}" title="${curto ? "O prazo planejado é menor que o necessário: aumente as equipes ou a duração" : ""}">${dn ?? "—"}</td>`;
 }
 // recalcula a duração de cada serviço pela produção × equipes, mantendo a sequência dentro do grupo
