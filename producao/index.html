@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Diário de Produção — LM</title>
+<title>Gestão de Obras — LM</title>
 <link rel="icon" href="logo-setor.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -120,6 +120,64 @@
   .kpi div{background:#fff;border:1px solid var(--borda);border-radius:10px;padding:8px 12px}
   .kpi b{display:block;font-size:20px;color:var(--azul)}
   .kpi span{font-size:12px;color:var(--mut)}
+  /* contrato · medições · compras */
+  .dados{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px 18px;margin-top:10px}
+  .dados div{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .dados .full{grid-column:1/-1}
+  .dados span{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+  .dados b{font-weight:600;word-break:break-word}
+  .kpi div{min-width:150px;flex:1}
+  table.tb{border-collapse:collapse;width:100%;font-size:13px}
+  table.tb th,table.tb td{border-bottom:1px solid var(--borda);padding:7px 8px;text-align:center;vertical-align:middle}
+  table.tb th{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--azul);white-space:nowrap;background:#fff;position:sticky;top:0;z-index:1}
+  table.tb .l{text-align:left}
+  table.tb small{color:var(--mut);font-size:11px}
+  table.tb tr.g td{background:var(--azulClaro);font-weight:700;font-size:12px}
+  table.tb tfoot td{font-weight:700;background:#f3f5f9}
+  table.tb tfoot tr.real td{color:var(--azul2)}
+  table.tb tr.estouro td{background:#fde8e8}
+  table.tb tr.atraso td:first-child{box-shadow:inset 3px 0 0 var(--erro)}
+  table.tb tr.melhor td{background:rgba(30,142,62,.08)}
+  table.tb input{width:110px;text-align:right;padding:7px 8px;border:1px solid var(--borda);border-radius:8px}
+  table.tb input.pct{width:72px}
+  table.tb input.erro,.rqlin input.erro{border-color:var(--erro)!important}
+  table.med td:nth-child(2){min-width:240px}
+  .neg{color:var(--erro)!important;font-weight:700}.pos{color:var(--ok)!important;font-weight:700}
+  .nota{font-size:12px;color:var(--mut);margin:8px 0 0}
+  .barra{height:6px;border-radius:6px;background:#e7ebf2;overflow:hidden;min-width:60px}
+  .barra i{display:block;height:100%;background:var(--azul2);border-radius:6px}
+  .barra i.estouro{background:var(--erro)}
+  .barlinha{display:grid;grid-template-columns:minmax(120px,1fr) 2fr auto;gap:10px;align-items:center;padding:5px 0;font-size:13px}
+  .chip{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;
+    color:var(--c);border:1px solid var(--c);background:color-mix(in srgb,var(--c) 12%,transparent)}
+  .pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}
+  .pipe div{background:var(--card);border:1px solid var(--borda);border-top:3px solid var(--c);border-radius:10px;padding:8px 12px;display:flex;flex-direction:column}
+  .pipe span{font-size:11px;color:var(--mut);text-transform:uppercase}
+  .pipe b{font-size:22px;color:var(--c)}
+  .pipe small{font-size:11px;color:var(--mut)}
+  .trilha{display:flex;gap:6px;flex-wrap:wrap}
+  .trilha div{flex:1;min-width:120px;display:flex;flex-direction:column;gap:3px;opacity:.45;font-size:12px}
+  .trilha div i{height:5px;border-radius:5px;background:var(--c)}
+  .trilha div.ok{opacity:1}
+  .trilha small{color:var(--mut)}
+  .form{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px 14px}
+  .form label,main label{font-size:12px;color:var(--mut);display:flex;flex-direction:column;gap:4px}
+  .row > label{flex-direction:row;align-items:center;gap:6px}
+  .form .full,label.full{grid-column:1/-1}
+  .form input,.form textarea,.row input[type=date],.imp textarea,label.full textarea,#reqFiltro,.ic select{padding:8px 10px;border:1px solid var(--borda);border-radius:8px;width:100%;min-width:0}
+  .form label.chk{flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--txt)}
+  .form label.chk input{width:auto}
+  .imp textarea{min-height:110px;margin:10px 0;font-family:ui-monospace,monospace;font-size:12px}
+  .imp p{font-size:13px;color:var(--mut)}
+  .rqlin{display:grid;grid-template-columns:2fr 90px 80px 2fr 36px;gap:6px;margin-bottom:6px}
+  .rqlin.cot{grid-template-columns:1.4fr 130px 130px 2fr auto}
+  .rqlin input,.rqlin select{padding:8px;border:1px solid var(--borda);border-radius:8px;min-width:0}
+  @media (max-width:700px){ .rqlin,.rqlin.cot{grid-template-columns:1fr 1fr} .rqlin [data-f=descricao],.rqlin select,#ctForn,#ctObs{grid-column:1/-1} }
+  .ic{margin-top:8px}
+  .hist{font-size:13px;padding:5px 0;border-bottom:1px solid #eef1f6}
+  details summary{cursor:pointer;color:var(--azul);font-weight:600;font-size:13px}
+  .btn.on{background:var(--azul2);color:#fff;border-color:var(--azul2)}
+  .view label{color:var(--mut)}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -228,13 +286,36 @@
   #gate img{background:#fff;border-radius:10px;padding:4px}
   #gate .lm-portal{margin-top:14px}
 }
+@media screen{
+  /* contrato · medições · compras (tema escuro) */
+  table.tb th{background:#0C1A2B;color:var(--lm-cyan)}
+  table.tb th,table.tb td{border-bottom-color:var(--lm-line)}
+  table.tb tr.g td{background:rgba(11,131,178,.22);color:var(--lm-text)}
+  table.tb tfoot td{background:rgba(255,255,255,.04)}
+  table.tb tfoot tr.real td{color:var(--lm-cyan)}
+  table.tb tr.estouro td{background:rgba(255,107,122,.12)}
+  table.tb tr.melhor td{background:rgba(43,255,154,.06)}
+  table.tb tbody tr:hover td{background:rgba(61,242,255,.04)}
+  .barra{background:rgba(255,255,255,.08)}
+  .barra i{background:linear-gradient(90deg,var(--lm-acc2),var(--lm-cyan))}
+  .barra i.estouro{background:var(--lm-err)}
+  .pipe div{background:var(--lm-glass);border-color:var(--lm-line);border-top-color:var(--c);backdrop-filter:blur(12px)}
+  .pipe b{font-family:Orbitron,sans-serif;text-shadow:0 0 12px color-mix(in srgb,var(--c) 45%,transparent)}
+  .trilha div i{box-shadow:0 0 10px var(--c)}
+  .form input,.form textarea,.row input[type=date],.imp textarea,label.full textarea,#reqFiltro,.ic select,.rqlin input,.rqlin select,table.tb input{
+    background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
+  .hist{border-bottom-color:var(--lm-line)}
+  details summary{color:var(--lm-cyan)}
+  .btn.on{background:linear-gradient(90deg,var(--lm-acc2),var(--lm-violet));border:none}
+  .dados b{color:var(--lm-text)}
+}
 </style>
 </head>
 <body>
 <div id="gate">
   <div class="box">
     <div style="display:flex;gap:14px;justify-content:center;align-items:center"><img src="logo-lm.png" alt="LM" style="height:50px"><img src="logo-setor.png" alt="PDCA LM" style="height:72px"></div>
-    <h2 style="margin:10px 0 0;color:var(--azul);font-size:18px">Diário de Produção</h2>
+    <h2 style="margin:10px 0 0;color:var(--azul);font-size:18px">Gestão de Obras</h2>
     <p id="gateMsg" style="color:var(--mut);font-size:13px;margin:6px 0 0">Carregando...</p>
     <input id="gatePwd" type="password" placeholder="Senha da obra ou senha geral" autocomplete="current-password" disabled>
     <button class="btn pri" id="gateBtn" style="width:100%" disabled>Entrar</button>
@@ -247,7 +328,7 @@
   <a class="lm-portal" href="https://engenharialm.github.io/portal-lm/" title="Voltar ao Portal LM"><i>←</i> Portal</a>
   <img src="logo-lm.png" alt="LM">
   <img src="logo-setor.png" alt="PDCA LM" class="setor">
-  <h1>Diário de Produção</h1>
+  <h1>Gestão de Obras</h1>
   <span id="modo"></span>
   <span class="sp"></span>
   <select id="obraSel" aria-label="Obra"></select>
@@ -258,13 +339,19 @@
   <button data-tab="diario" class="on">Diário do dia</button>
   <button data-tab="prog">Programação da semana</button>
   <button data-tab="semana">Semana / Exportar</button>
-  <button data-tab="obras">Obras</button>
+  <button data-tab="contrato">Contrato</button>
+  <button data-tab="medicoes">Medições</button>
+  <button data-tab="compras">Compras</button>
+  <button data-tab="obras">Cadastro</button>
 </nav>
 </div>
 <main>
   <section id="v-diario" class="view on"></section>
   <section id="v-prog" class="view"></section>
   <section id="v-semana" class="view"></section>
+  <section id="v-contrato" class="view"></section>
+  <section id="v-medicoes" class="view"></section>
+  <section id="v-compras" class="view"></section>
   <section id="v-obras" class="view"></section>
 </main>
 <div class="savebar" id="savebar"></div>
@@ -325,6 +412,7 @@ function num(v){
   if (v === null || v === undefined) return null;
   let s = String(v).trim(); if (!s) return null;
   if (s.includes(",")) s = s.replace(/\./g,"").replace(",",".");
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g,"");   // "1.500" = mil e quinhentos (como a tela mostra)
   const n = Number(s); return isFinite(n) ? n : null;
 }
 const fmtNum = n => (n === null || n === undefined || n === "") ? "" : Number(n).toLocaleString("pt-BR",{maximumFractionDigits:2});
@@ -343,6 +431,10 @@ const localSave = d => localStorage.setItem(LS_KEY, JSON.stringify(d));
 const clone = o => JSON.parse(JSON.stringify(o));
 
 const store = {
+  async del(col, id){
+    if (LOCAL){ const d = localData(); if (d[col]) delete d[col][id]; localSave(d); return; }
+    await fs.deleteDoc(fs.doc(db,col,id));
+  },
   async list(col, field, val){
     if (LOCAL){
       const c = localData()[col] || {};
@@ -608,12 +700,15 @@ function weekbar(){
     <button data-navsem="1" aria-label="Próxima semana">›</button></div>`;
 }
 function draftFromWeek(w){
-  return estrutura(w).flatMap(g => g.acts).map(a => ({ id:a.id, grupo:a.grupo||"", descricao:a.descricao||"", unidade:a.unidade||"", prog:{...(a.prog||{})} }));
+  return estrutura(w).flatMap(g => g.acts).map(a => ({ id:a.id, grupo:a.grupo||"", descricao:a.descricao||"", unidade:a.unidade||"", itemContrato:a.itemContrato||"", prog:{...(a.prog||{})} }));
 }
 function renderProg(){
   const el = $("#v-prog");
   if (!S.obraId){ el.innerHTML = semObra(); setSavebar(""); return; }
   if (!S.draft){ S.draft = draftFromWeek(S.week); S.draftNT = { ...naoTrab(S.week) }; }
+  // carrega o contrato da obra para poder ligar as atividades aos itens (usado na medição)
+  if (S.ext.obraId !== S.obraId) loadExtras().then(() => { if (S.tab === "prog" && S.draft){ syncDraftFromDom(); renderProg(); } }).catch(console.error);
+  const itensC = S.ext.obraId === S.obraId ? (S.ext.contrato?.itens || []) : [];
   const grupos = [...new Set([...GRUPOS_PADRAO, ...S.draft.map(a => a.grupo).filter(Boolean)])];
   let h = weekbar();
   h += `<div class="row" style="margin-bottom:12px">
@@ -631,6 +726,8 @@ function renderProg(){
         <div><div class="lbl">Unidade</div><input list="unidades" data-f="unidade" value="${esc(a.unidade)}" placeholder="m"></div>
         <div class="ctl"><button data-mv="-1" title="Subir">↑</button><button data-mv="1" title="Descer">↓</button><button data-rm title="Excluir" style="color:var(--erro)">✕</button></div>
       </div>
+      ${itensC.length ? `<div class="ic"><div class="lbl">Item do contrato (para a medição)</div><select data-ic>
+        <option value="">— não medir / sem item —</option>${itensC.map(i => `<option value="${i.id}" ${a.itemContrato===i.id?"selected":""}>${esc(i.item)} — ${esc(i.descricao.slice(0,80))} (${esc(i.un)})</option>`).join("")}</select></div>` : ""}
       <div class="dias">${DIAS.map((dn,d) => `<div class="${S.draftNT[d]?"fds":""}"><label>${dn} ${fmtCurto(addDays(S.semana,d))}</label>
         <input inputmode="decimal" data-d="${d}" value="${val(a.prog,d)===null?"":fmtNum(val(a.prog,d))}"></div>`).join("")}</div>
     </div>`;
@@ -646,6 +743,7 @@ function syncDraftFromDom(){
       a[i.dataset.f] = i.value.trim().toUpperCase();
       if (i.dataset.f === "unidade") a.unidade = i.value.trim();
     });
+    const ic = div.querySelector("[data-ic]"); if (ic) a.itemContrato = ic.value;
     a.prog = {};
     div.querySelectorAll("[data-d]").forEach(i => { const v = num(i.value); if (v !== null) a.prog[i.dataset.d] = v; });
   });
@@ -662,6 +760,7 @@ async function salvarProg(){
     paths[`${b}.ordem`] = i; paths[`${b}.grupo`] = a.grupo; paths[`${b}.descricao`] = a.descricao;
     paths[`${b}.unidade`] = (a.unidade || "un").replace(/^m2$/i,"m²").replace(/^m3$/i,"m³");
     paths[`${b}.prog`] = a.prog;
+    if (a.itemContrato !== undefined) paths[`${b}.itemContrato`] = a.itemContrato || null;
   });
   for (const id of Object.keys(S.week.atividades || {})) if (!lista.find(a => a.id === id)) paths[`atividades.${id}`] = DEL;
   paths.naoTrab = S.draftNT;
@@ -772,7 +871,7 @@ function aplicaAcessoUI(){
 }
 function setSavebar(html){ $("#savebar").innerHTML = html; $("#savebar").style.display = html ? "flex" : "none"; }
 function render(){
-  ({ diario:renderDiario, prog:renderProg, semana:renderSemana, obras:renderObras })[S.tab]();
+  ({ diario:renderDiario, prog:renderProg, semana:renderSemana, obras:renderObras, contrato:renderContrato, medicoes:renderMedicoes, compras:renderCompras })[S.tab]();
 }
 
 /* ------------------------------- exportação ------------------------------- */
@@ -1201,6 +1300,845 @@ document.addEventListener("change", async ev => {
     S.obraId = ev.target.value; localStorage.setItem("diarioLM_obra", S.obraId);
     await loadWeek(); render();
   }
+});
+
+/* ==========================================================================
+   CONTRATO · MEDIÇÕES · COMPRAS
+   Coleções próprias (não mexem no diário):
+     obra_contratos/{obraId}   dados do contrato, planilha contratual e cronograma
+     obra_medicoes/{id}        boletins de medição e o acompanhamento de cada um
+     obra_requisicoes/{id}     requisições de compra → cotação → pedido → recebimento
+   Quem entra com a senha da obra vê tudo da obra, abre requisições e registra
+   recebimentos; o acesso geral (escritório) cadastra contrato, faz as medições,
+   aprova, cota e emite os pedidos.
+   ========================================================================== */
+const COL_CONTR = "obra_contratos";
+const COL_MED = "obra_medicoes";
+const COL_REQ = "obra_requisicoes";
+
+const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
+const fmtR = n => (n === null || n === undefined || isNaN(n)) ? "—" : Number(n).toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
+const fmtQ = n => (n === null || n === undefined || n === "") ? "" : Number(n).toLocaleString("pt-BR", { maximumFractionDigits:3 });
+const fmtP = n => (n === null || n === undefined || isNaN(n) || !isFinite(n)) ? "—" : (n*100).toLocaleString("pt-BR", { minimumFractionDigits:1, maximumFractionDigits:1 }) + "%";
+const ehGeral = () => !!S.acesso?.geral;
+const itemId = item => "it_" + String(item).replace(/[^\w]/g, "_");
+const agoraIso = () => new Date().toISOString();
+const diasEntre = (a, b) => Math.round((parseIso(b) - parseIso(a)) / 86400000);
+const MESES = ["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
+const addMeses = (s, n) => { const d = parseIso(s); d.setMonth(d.getMonth() + n); return iso(d); };
+const normUn = u => String(u || "").trim().replace(/^m2$/i,"m²").replace(/^m3$/i,"m³").replace(/^h$/i,"h").replace(/^mes$/i,"mês");
+
+S.ext = { obraId:null, contrato:null, meds:[], reqs:[] };
+S.medSel = null;     // id da medição aberta
+S.reqSel = null;     // id da requisição aberta
+S.reqFiltro = "pendentes";
+S.reqTodas = false;  // escritório: ver requisições de todas as obras
+S.todasReqs = null;
+S.todasMeds = null;
+
+async function loadExtras(force){
+  if (!force && S.ext.obraId === S.obraId) return;
+  const id = S.obraId;
+  if (!id){ S.ext = { obraId:id, contrato:null, meds:[], reqs:[] }; return; }
+  const [contrato, meds, reqs] = await Promise.all([
+    store.get(COL_CONTR, id), store.list(COL_MED, "obraId", id), store.list(COL_REQ, "obraId", id)
+  ]);
+  S.ext = { obraId:id, contrato, meds: meds.sort((a,b) => a.numero - b.numero), reqs: reqs.sort((a,b) => b.numero - a.numero) };
+}
+// mostra "carregando" e redesenha quando os dados da obra chegarem
+function precisaCarregar(el, fn){
+  if (S.ext.obraId === S.obraId) return false;
+  el.innerHTML = `<div class="card vazio">Carregando...</div>`; setSavebar("");
+  loadExtras().then(fn).catch(e => { console.error(e); el.innerHTML = `<div class="card vazio">Erro ao carregar: ${esc(e.message)}</div>`; });
+  return true;
+}
+
+/* ------------------------------ cálculos ------------------------------ */
+const STATUS_MED = [
+  { k:"rascunho",  t:"Em elaboração", cor:"#8AA4BC" },
+  { k:"enviada",   t:"Enviada à fiscalização", cor:"#FFC14D" },
+  { k:"aprovada",  t:"Aprovada", cor:"#3DF2FF" },
+  { k:"faturada",  t:"Faturada (NF)", cor:"#7B5CFF" },
+  { k:"paga",      t:"Paga", cor:"#2BFF9A" }
+];
+const stMed = k => STATUS_MED.find(s => s.k === k) || STATUS_MED[0];
+const idxMed = k => STATUS_MED.findIndex(s => s.k === k);
+const valorItens = c => r2((c?.itens || []).reduce((s,i) => s + r2(i.qtd * i.pu), 0));
+const valorContrato = c => c?.valor || valorItens(c);
+function valorMed(m, c){
+  let v = 0;
+  for (const i of (c?.itens || [])) v += r2((m.qtd?.[i.id] || 0) * i.pu);
+  return r2(v);
+}
+// quantidade medida antes da medição de número n (n = Infinity → todas)
+function acumAnterior(itemIdx, n){
+  let q = 0;
+  for (const m of S.ext.meds) if (m.numero < n) q += Number(m.qtd?.[itemIdx] || 0);
+  return q;
+}
+function gruposContrato(c){
+  const gs = [];
+  for (const i of (c?.itens || [])){
+    let g = gs.find(x => x.nome === i.grupo);
+    if (!g){ g = { nome:i.grupo, itens:[], total:0 }; gs.push(g); }
+    g.itens.push(i); g.total = r2(g.total + r2(i.qtd * i.pu));
+  }
+  return gs;
+}
+// previsto acumulado (R$) até o mês m (1..n), pelo cronograma
+function previstoAte(c, m){
+  const cr = c?.cronograma; if (!cr) return null;
+  let v = 0;
+  for (const g of gruposContrato(c)){
+    const pcts = cr.metas?.[norm(g.nome)] || [];
+    for (let k = 0; k < Math.min(m, pcts.length); k++) v += g.total * (Number(pcts[k]) || 0) / 100;
+  }
+  return r2(v);
+}
+const statusMedChip = k => { const s = stMed(k); return `<span class="chip" style="--c:${s.cor}">${s.t}</span>`; };
+
+/* ======================================================================
+   CONTRATO
+   ====================================================================== */
+function renderContrato(){
+  const el = $("#v-contrato");
+  if (!S.obraId){ el.innerHTML = semObra(); setSavebar(""); return; }
+  if (precisaCarregar(el, renderContrato)) return;
+  const c = S.ext.contrato, o = obraAtual();
+  setSavebar("");
+  if (!c || !(c.itens || []).length){
+    el.innerHTML = `<div class="card"><h3>Contrato de ${esc(o.nome)}</h3>
+      <p class="vazio" style="padding:8px 0">O contrato desta obra ainda não foi cadastrado.</p>
+      ${ehGeral() ? formImportar() : `<p style="color:var(--mut)">Peça ao escritório para cadastrar a planilha contratual.</p>`}</div>`;
+    return;
+  }
+  const vc = valorContrato(c);
+  const medAcum = r2(S.ext.meds.reduce((s,m) => s + valorMed(m, c), 0));
+  const medAprov = r2(S.ext.meds.filter(m => idxMed(m.status) >= idxMed("aprovada")).reduce((s,m) => s + valorMed(m, c), 0));
+  const termino = c.inicio && c.prazoMeses ? addDays(addMeses(c.inicio, c.prazoMeses), -1) : null;
+  const decorrido = c.inicio && termino ? Math.max(0, Math.min(1, diasEntre(c.inicio, hoje()) / Math.max(1, diasEntre(c.inicio, termino)))) : null;
+  let h = `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Contrato — ${esc(o.nome)}</h3>
+      ${ehGeral() ? `<span class="row"><button class="btn peq" id="ctEditar">Editar dados</button><button class="btn peq" id="ctReimportar">Substituir planilha</button></span>` : ""}</div>
+    <div class="dados">
+      <div><span>Contratante</span><b>${esc(c.contratante || "—")}</b></div>
+      <div><span>Processo / edital</span><b>${esc(c.processo || "—")}</b></div>
+      <div><span>Nº do contrato</span><b>${esc(c.numero || "—")}</b></div>
+      <div><span>Valor do contrato</span><b>${fmtR(vc)}</b></div>
+      <div><span>BDI</span><b>${c.bdi != null ? fmtNum(c.bdi) + "%" : "—"}</b></div>
+      <div><span>Prazo</span><b>${c.prazoMeses ? c.prazoMeses + " meses" : "—"}</b></div>
+      <div><span>Início (OS)</span><b>${c.inicio ? fmtBR(c.inicio) : "a definir"}</b></div>
+      <div><span>Término previsto</span><b>${termino ? fmtBR(termino) : "—"}</b></div>
+      <div class="full"><span>Objeto</span><b>${esc(c.objeto || "—")}</b></div>
+    </div></div>`;
+  h += `<div class="kpi">
+    <div><b>${fmtR(medAcum)}</b><span>Medido (todas as medições)</span></div>
+    <div><b>${fmtP(medAcum / vc)}</b><span>Executado financeiro</span></div>
+    <div><b>${fmtR(r2(vc - medAcum))}</b><span>Saldo do contrato</span></div>
+    <div><b>${fmtR(medAprov)}</b><span>Aprovado pela fiscalização</span></div>
+    ${decorrido !== null ? `<div><b>${fmtP(decorrido)}</b><span>Prazo decorrido</span></div>` : ""}
+  </div>`;
+  // cronograma: previsto x medido por mês
+  if (c.cronograma?.meses){
+    const n = c.cronograma.meses;
+    h += `<div class="card"><h3>Cronograma físico-financeiro — previsto × medido</h3><div class="tbwrap"><table class="tb"><thead><tr><th class="l">Meta</th><th>Valor</th>`;
+    for (let k = 1; k <= n; k++) h += `<th>Mês ${k}${c.inicio ? `<br><small>${MESES[parseIso(addMeses(c.inicio,k-1)).getMonth()]}/${String(parseIso(addMeses(c.inicio,k-1)).getFullYear()).slice(2)}</small>` : ""}</th>`;
+    h += `</tr></thead><tbody>`;
+    for (const g of gruposContrato(c)){
+      const pcts = c.cronograma.metas?.[norm(g.nome)] || [];
+      h += `<tr><td class="l">${esc(g.nome)}</td><td>${fmtR(g.total)}</td>`;
+      for (let k = 0; k < n; k++){ const p = Number(pcts[k]) || 0; h += `<td>${p ? fmtR(r2(g.total*p/100)) + `<br><small>${fmtNum(p)}%</small>` : "—"}</td>`; }
+      h += `</tr>`;
+    }
+    h += `</tbody><tfoot><tr><td class="l">Previsto no mês</td><td>${fmtR(vc)}</td>`;
+    for (let k = 1; k <= n; k++) h += `<td>${fmtR(r2(previstoAte(c,k) - previstoAte(c,k-1)))}</td>`;
+    h += `</tr><tr><td class="l">Previsto acumulado</td><td></td>`;
+    for (let k = 1; k <= n; k++) h += `<td>${fmtR(previstoAte(c,k))}<br><small>${fmtP(previstoAte(c,k)/vc)}</small></td>`;
+    h += `</tr><tr class="real"><td class="l">Medido acumulado</td><td></td>`;
+    for (let k = 1; k <= n; k++){
+      const ms = S.ext.meds.filter(m => m.numero <= k);
+      const v = r2(ms.reduce((s,m) => s + valorMed(m,c), 0));
+      const tem = S.ext.meds.some(m => m.numero === k);
+      h += `<td>${tem ? fmtR(v) + `<br><small class="${v + 0.01 < previstoAte(c,k) ? "neg" : "pos"}">${fmtP(v/vc)}</small>` : "—"}</td>`;
+    }
+    h += `</tr></tfoot></table></div><p class="nota">Medição nº N é comparada com o mês N do cronograma.</p></div>`;
+  }
+  // planilha contratual
+  h += `<div class="card"><h3>Planilha contratual (${c.itens.length} itens)</h3><div class="tbwrap"><table class="tb"><thead><tr>
+    <th>Item</th><th class="l">Descrição</th><th>Un</th><th>Qtd contratada</th><th>Preço unit.</th><th>Total</th><th>Medido</th><th>%</th></tr></thead><tbody>`;
+  for (const g of gruposContrato(c)){
+    h += `<tr class="g"><td colspan="5" class="l">${esc(g.nome)}</td><td>${fmtR(g.total)}</td><td colspan="2"></td></tr>`;
+    for (const i of g.itens){
+      const q = acumAnterior(i.id, Infinity), p = i.qtd ? q / i.qtd : 0;
+      h += `<tr><td>${esc(i.item)}</td><td class="l">${esc(i.descricao)}${i.codigo ? `<br><small>${esc(i.codigo)}</small>` : ""}</td><td>${esc(i.un)}</td>
+        <td>${fmtQ(i.qtd)}</td><td>${fmtR(i.pu)}</td><td>${fmtR(r2(i.qtd*i.pu))}</td><td>${q ? fmtQ(q) : "—"}</td>
+        <td><div class="barra"><i style="width:${Math.min(100,p*100)}%" class="${p > 1.0001 ? "estouro" : ""}"></i></div><small>${q ? fmtP(p) : ""}</small></td></tr>`;
+    }
+  }
+  h += `</tbody><tfoot><tr><td colspan="5" class="l">TOTAL</td><td>${fmtR(valorItens(c))}</td><td colspan="2"></td></tr></tfoot></table></div>
+    ${Math.abs(valorItens(c) - vc) >= 0.01 ? `<p class="nota">A soma dos itens (${fmtR(valorItens(c))}) difere do valor do contrato (${fmtR(vc)}) em ${fmtR(r2(valorItens(c)-vc))} — arredondamento da planilha.</p>` : ""}</div>`;
+  el.innerHTML = h;
+}
+
+function formImportar(){
+  return `<div class="imp">
+    <p><b>Cadastrar a planilha contratual</b> — escolha o arquivo Excel exportado do orçamento (Compor/SICRO/SINAPI) ou cole as linhas copiadas do Excel.
+    Colunas reconhecidas: Item, Código, Descrição, Unidade, Quantidade, Preço unitário. Linhas sem quantidade viram o nome do grupo (TERRAPLENAGEM, DRENAGEM...).</p>
+    <div class="row"><input type="file" id="ctArq" accept=".xlsx"><span style="color:var(--mut)">ou</span></div>
+    <textarea id="ctColar" placeholder="Cole aqui as linhas da planilha (Ctrl+V a partir do Excel)"></textarea>
+    <div class="row"><button class="btn pri" id="ctLer">Ler planilha</button><button class="btn" id="ctCancelaImp" ${S.ext.contrato?.itens?.length ? "" : "hidden"}>Cancelar</button></div>
+    <div id="ctPrevia"></div></div>`;
+}
+
+// transforma linhas (array de arrays) em itens da planilha
+function linhasParaItens(rows){
+  const limpa = v => String(v ?? "").replace(/\s+/g," ").trim();
+  const n = v => { if (typeof v === "number") return v; const s = limpa(v); if (!s) return null; return num(s); };
+  let hi = rows.findIndex(r => r.some(c => /descri/i.test(limpa(c))) && r.some(c => /quant|qtd/i.test(limpa(c))));
+  if (hi < 0) throw new Error("Não achei o cabeçalho (precisa ter as colunas Descrição e Quantidade).");
+  const cab = rows[hi].map(c => limpa(c).toLowerCase());
+  const acha = (...re) => cab.findIndex(c => re.some(r => r.test(c)));
+  const ci = { item: acha(/^item/), cod: acha(/c[óo]d/, /refer/), desc: acha(/descri/), un: acha(/^un/), qtd: acha(/quant|qtd/),
+               pu: acha(/unit/, /^p\.?\s*u/, /pre[çc]o un/) };
+  if (ci.pu < 0) ci.pu = acha(/pre[çc]o/);
+  if (ci.desc < 0 || ci.qtd < 0 || ci.pu < 0) throw new Error("Faltam colunas: preciso de Descrição, Quantidade e Preço unitário.");
+  const itens = []; let grupo = "SEM GRUPO";
+  for (const r of rows.slice(hi + 1)){
+    const desc = limpa(r[ci.desc]), q = n(r[ci.qtd]), pu = n(r[ci.pu]);
+    if (!desc) continue;
+    if (/^total/i.test(desc)) continue;
+    if (q === null || pu === null){ grupo = desc.toUpperCase(); continue; }
+    itens.push({ grupo, item: ci.item >= 0 ? limpa(r[ci.item]) : "", codigo: ci.cod >= 0 ? limpa(r[ci.cod]) : "", descricao: desc,
+                 un: normUn(ci.un >= 0 ? limpa(r[ci.un]) : "un"), qtd: q, pu });
+  }
+  if (!itens.length) throw new Error("Nenhum item com quantidade e preço foi encontrado.");
+  numeraItens(itens);
+  return itens;
+}
+function numeraItens(itens){
+  const gs = [];
+  for (const i of itens){ if (!gs.includes(i.grupo)) gs.push(i.grupo); }
+  const cont = {};
+  for (const i of itens){
+    const g = gs.indexOf(i.grupo) + 1; cont[g] = (cont[g] || 0) + 1;
+    if (!i.item) i.item = `1.${g}.${cont[g]}`;
+    i.id = itemId(i.item);
+  }
+  // ids únicos mesmo se a planilha repetir o número do item
+  const vistos = {};
+  for (const i of itens){ if (vistos[i.id]){ vistos[i.id]++; i.id += "_" + vistos[i.id]; } else vistos[i.id] = 1; }
+}
+async function lerPlanilha(){
+  const arq = $("#ctArq").files[0], txt = $("#ctColar").value;
+  let rows;
+  if (arq){
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await arq.arrayBuffer());
+    const ws = wb.worksheets[0]; rows = [];
+    ws.eachRow({ includeEmpty:false }, r => {
+      const vals = []; r.eachCell({ includeEmpty:true }, (cell, c) => {
+        let v = cell.value; if (v && typeof v === "object") v = v.result ?? v.text ?? (v.richText ? v.richText.map(x => x.text).join("") : "");
+        vals[c-1] = v;
+      });
+      rows.push(vals);
+    });
+  } else if (txt.trim()){
+    rows = txt.split(/\r?\n/).map(l => l.split("\t"));
+  } else { toast("Escolha o arquivo ou cole as linhas.", true); return; }
+  try {
+    const itens = linhasParaItens(rows);
+    S.impItens = itens;
+    const gs = gruposContrato({ itens });
+    $("#ctPrevia").innerHTML = `<div class="info">Encontrei <b>${itens.length} itens</b> em ${gs.length} grupos, total <b>${fmtR(valorItens({ itens }))}</b>:
+      ${gs.map(g => `${esc(g.nome)} (${g.itens.length})`).join(" · ")}</div>
+      <div class="row"><button class="btn pri" id="ctConfirmaImp">Confirmar e salvar</button></div>`;
+  } catch(e){ $("#ctPrevia").innerHTML = `<div class="info">${esc(e.message)}</div>`; }
+}
+async function salvarImport(){
+  const atual = S.ext.contrato || {};
+  if (atual.itens?.length && S.ext.meds.length && !confirm("Esta obra já tem medições. Substituir a planilha pode mudar os itens medidos (os que tiverem o mesmo número continuam valendo). Continuar?")) return;
+  const doc = { ...atual, obraId:S.obraId, obraNome:obraAtual().nome, itens:S.impItens, atualizadoEm:agoraIso(), atualizadoPor:S.nome || "" };
+  if (!doc.valor) doc.valor = valorItens(doc);
+  await store.set(COL_CONTR, S.obraId, doc);
+  S.impItens = null; await loadExtras(true); renderContrato(); toast("Planilha contratual salva.");
+}
+function formDados(){
+  const c = S.ext.contrato || {};
+  const n = c.cronograma?.meses || c.prazoMeses || 0;
+  const gs = gruposContrato(c);
+  let h = `<div class="card"><h3>Dados do contrato</h3><div class="form">
+    <label>Contratante<input id="cdContratante" value="${esc(c.contratante||"")}"></label>
+    <label>Processo / edital<input id="cdProcesso" value="${esc(c.processo||"")}"></label>
+    <label>Nº do contrato<input id="cdNumero" value="${esc(c.numero||"")}"></label>
+    <label>Valor do contrato (R$)<input id="cdValor" inputmode="decimal" value="${c.valor ? fmtNum(c.valor) : ""}"></label>
+    <label>BDI (%)<input id="cdBdi" inputmode="decimal" value="${c.bdi != null ? fmtNum(c.bdi) : ""}"></label>
+    <label>Prazo (meses)<input id="cdPrazo" inputmode="numeric" value="${c.prazoMeses||""}"></label>
+    <label>Início — data da ordem de serviço<input id="cdInicio" type="date" value="${c.inicio||""}"></label>
+    <label class="full">Objeto<textarea id="cdObjeto">${esc(c.objeto||"")}</textarea></label>
+  </div>`;
+  if (n && gs.length){
+    h += `<h3 style="margin-top:14px">Cronograma — % de cada meta por mês</h3><div class="tbwrap"><table class="tb"><thead><tr><th class="l">Meta</th>`;
+    for (let k = 1; k <= n; k++) h += `<th>Mês ${k}</th>`;
+    h += `</tr></thead><tbody>`;
+    for (const g of gs){
+      const p = c.cronograma?.metas?.[norm(g.nome)] || [];
+      h += `<tr data-meta="${esc(norm(g.nome))}"><td class="l">${esc(g.nome)}</td>${Array.from({ length:n }, (_,k) => `<td><input class="pct" inputmode="decimal" data-m="${k}" value="${p[k] ? fmtNum(p[k]) : ""}"></td>`).join("")}</tr>`;
+    }
+    h += `</tbody></table></div><p class="nota">Cada linha deve somar 100%. Para mudar o número de meses, altere o prazo, salve e abra de novo.</p>`;
+  }
+  h += `<div class="row" style="margin-top:12px"><button class="btn pri" id="cdSalvar">Salvar dados</button><button class="btn" id="cdCancelar">Cancelar</button></div></div>`;
+  return h;
+}
+async function salvarDados(){
+  const c = { ...(S.ext.contrato || {}) };
+  const v = $("#cdValor").value.trim(), b = $("#cdBdi").value.trim(), p = parseInt($("#cdPrazo").value, 10);
+  if ((v && num(v) === null) || (b && num(b) === null)){ toast("Valor e BDI precisam ser números.", true); return; }
+  Object.assign(c, { contratante:$("#cdContratante").value.trim(), processo:$("#cdProcesso").value.trim(), numero:$("#cdNumero").value.trim(),
+    valor: v ? num(v) : valorItens(c), bdi: b ? num(b) : null, prazoMeses: p > 0 ? p : null, inicio:$("#cdInicio").value || null,
+    objeto:$("#cdObjeto").value.trim(), atualizadoEm:agoraIso(), atualizadoPor:S.nome || "" });
+  const trs = $$("#v-contrato tr[data-meta]");
+  if (trs.length){
+    const metas = {}; let erro = null;
+    for (const tr of trs){
+      const ps = [...tr.querySelectorAll(".pct")].map(i => num(i.value) || 0);
+      const soma = ps.reduce((s,x) => s + x, 0);
+      if (soma && Math.abs(soma - 100) > 0.05) erro = `${tr.firstElementChild.textContent}: soma ${fmtNum(soma)}%`;
+      metas[tr.dataset.meta] = ps;
+    }
+    if (erro && !confirm(`O cronograma não fecha 100% em: ${erro}.\nSalvar assim mesmo?`)) return;
+    c.cronograma = { meses: trs[0].querySelectorAll(".pct").length, metas };
+  }
+  if (c.prazoMeses && (!c.cronograma || c.cronograma.meses !== c.prazoMeses)){
+    const ant = c.cronograma?.metas || {};
+    const metas = {}; for (const g of gruposContrato(c)) metas[norm(g.nome)] = Array.from({ length:c.prazoMeses }, (_,k) => (ant[norm(g.nome)] || [])[k] || 0);
+    c.cronograma = { meses:c.prazoMeses, metas };
+  }
+  await store.set(COL_CONTR, S.obraId, c);
+  await loadExtras(true); renderContrato(); toast("Dados do contrato salvos.");
+}
+
+/* ======================================================================
+   MEDIÇÕES + ACOMPANHAMENTO
+   ====================================================================== */
+function renderMedicoes(){
+  const el = $("#v-medicoes");
+  if (!S.obraId){ el.innerHTML = semObra(); setSavebar(""); return; }
+  if (precisaCarregar(el, renderMedicoes)) return;
+  const c = S.ext.contrato;
+  if (!c?.itens?.length){
+    el.innerHTML = `<div class="card vazio">Cadastre primeiro a planilha contratual na aba <b>Contrato</b>.</div>`; setSavebar(""); return;
+  }
+  if (S.medSel){ renderMedEditor(); return; }
+  setSavebar("");
+  const vc = valorContrato(c), meds = S.ext.meds;
+  const tot = k => r2(meds.filter(m => m.status === k).reduce((s,m) => s + valorMed(m,c), 0));
+  let h = `<div class="pipe">${STATUS_MED.map(s => {
+      const ms = meds.filter(m => m.status === s.k);
+      return `<div style="--c:${s.cor}"><span>${s.t}</span><b>${ms.length}</b><small>${fmtR(tot(s.k))}</small></div>`; }).join("")}</div>`;
+  // alertas de acompanhamento
+  const alertas = [];
+  for (const m of meds){
+    const d = m.datas || {};
+    if (m.status === "enviada" && d.enviada && diasEntre(d.enviada, hoje()) > 10) alertas.push(`Medição ${m.numero} enviada há ${diasEntre(d.enviada, hoje())} dias e ainda não aprovada.`);
+    if (m.status === "aprovada" && d.aprovada && diasEntre(d.aprovada, hoje()) > 5) alertas.push(`Medição ${m.numero} aprovada há ${diasEntre(d.aprovada, hoje())} dias e sem nota fiscal.`);
+    if (m.status === "faturada" && d.faturada && diasEntre(d.faturada, hoje()) > 30) alertas.push(`Medição ${m.numero} faturada há ${diasEntre(d.faturada, hoje())} dias e ainda não paga.`);
+  }
+  if (alertas.length) h += `<div class="info">${alertas.map(esc).join("<br>")}</div>`;
+  h += `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Medições — ${esc(obraAtual().nome)}</h3>
+    ${ehGeral() ? `<button class="btn pri peq" id="medNova">+ Nova medição</button>` : ""}</div>`;
+  if (!meds.length) h += `<div class="vazio">Nenhuma medição ainda.</div>`;
+  else {
+    h += `<div class="tbwrap"><table class="tb"><thead><tr><th>Nº</th><th>Período</th><th>Valor</th><th>Acumulado</th><th>% contrato</th><th>Previsto (cronograma)</th><th>Situação</th><th>NF / pagamento</th><th></th></tr></thead><tbody>`;
+    let acum = 0;
+    for (const m of meds){
+      const v = valorMed(m,c); acum = r2(acum + v);
+      const prev = previstoAte(c, m.numero);
+      h += `<tr><td><b>${m.numero}</b></td><td>${fmtBR(m.inicio)} a ${fmtBR(m.fim)}</td><td>${fmtR(v)}</td><td>${fmtR(acum)}</td><td>${fmtP(acum/vc)}</td>
+        <td>${prev !== null ? fmtR(prev) + `<br><small class="${acum + 0.01 < prev ? "neg" : "pos"}">${acum + 0.01 < prev ? "abaixo" : "em dia"}</small>` : "—"}</td>
+        <td>${statusMedChip(m.status)}</td>
+        <td><small>${m.nf ? "NF " + esc(m.nf) : ""}${m.datas?.paga ? `<br>paga ${fmtBR(m.datas.paga)}${m.valorPago ? " · " + fmtR(m.valorPago) : ""}` : ""}</small></td>
+        <td><button class="btn peq" data-medabre="${m.id}">Abrir</button></td></tr>`;
+    }
+    h += `</tbody></table></div>`;
+  }
+  h += `</div>`;
+  if (ehGeral()) h += `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Todas as obras — medições em andamento</h3>
+      <button class="btn peq" id="medTodas">${S.todasMeds ? "Atualizar" : "Mostrar"}</button></div>${S.todasMeds ? tabelaTodasMeds() : ""}</div>`;
+  el.innerHTML = h;
+}
+function tabelaTodasMeds(){
+  const pend = S.todasMeds.filter(m => m.status !== "paga").sort((a,b) => (a.obraNome||"").localeCompare(b.obraNome||"") || a.numero - b.numero);
+  if (!pend.length) return `<div class="vazio">Nenhuma medição pendente.</div>`;
+  return `<div class="tbwrap"><table class="tb"><thead><tr><th class="l">Obra</th><th>Nº</th><th>Período</th><th>Valor</th><th>Situação</th><th>Desde</th></tr></thead><tbody>${
+    pend.map(m => { const d = m.datas?.[m.status] || (m.criadoEm||"").slice(0,10);
+      return `<tr><td class="l">${esc(m.obraNome||"")}</td><td>${m.numero}</td><td>${fmtBR(m.inicio)} a ${fmtBR(m.fim)}</td><td>${fmtR(m.valor)}</td><td>${statusMedChip(m.status)}</td><td>${d ? fmtBR(d) + ` <small>(${diasEntre(d, hoje())} d)</small>` : ""}</td></tr>`; }).join("")
+  }</tbody></table></div>`;
+}
+
+function novaMedicao(){
+  const c = S.ext.contrato, meds = S.ext.meds;
+  const ult = meds[meds.length - 1];
+  const numero = (ult?.numero || 0) + 1;
+  const inicio = ult ? addDays(ult.fim, 1) : (c.inicio || hoje());
+  const fim = addDays(addMeses(inicio, 1), -1);
+  S.medDraft = { id:null, obraId:S.obraId, numero, inicio, fim, qtd:{}, status:"rascunho", datas:{}, historico:[] };
+  S.medSel = "nova"; renderMedicoes();
+}
+function medAtual(){ return S.medSel === "nova" ? S.medDraft : S.ext.meds.find(m => m.id === S.medSel); }
+function renderMedEditor(){
+  const el = $("#v-medicoes"), c = S.ext.contrato;
+  const m0 = medAtual(); if (!m0){ S.medSel = null; renderMedicoes(); return; }
+  if (!S.medDraft || S.medDraft.id !== m0.id) S.medDraft = clone(m0);
+  const m = S.medDraft;
+  const travada = idxMed(m.status) >= idxMed("aprovada") || !ehGeral();
+  const vc = valorContrato(c);
+  let h = `<div class="row" style="margin-bottom:10px"><button class="btn peq" id="medVoltar">‹ Voltar às medições</button></div>`;
+  h += `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Medição nº ${m.numero} — ${esc(obraAtual().nome)}</h3>${statusMedChip(m.status)}</div>
+    <div class="row" style="margin-top:10px">
+      <label>Período de <input type="date" id="medIni" value="${m.inicio}" ${travada?"disabled":""}></label>
+      <label>a <input type="date" id="medFim" value="${m.fim}" ${travada?"disabled":""}></label>
+      ${!travada ? `<button class="btn peq" id="medSugerir" title="Soma o realizado lançado no Diário nas atividades ligadas a itens do contrato">Sugerir pelo Diário</button>` : ""}
+    </div>
+    ${travada && ehGeral() && m.status !== "paga" ? `<p class="nota">Medição aprovada: as quantidades ficam travadas. <a href="#" id="medReabrir">Reabrir para corrigir</a></p>` : ""}
+  </div>`;
+  // itens
+  h += `<div class="card"><div class="tbwrap"><table class="tb med"><thead><tr><th>Item</th><th class="l">Descrição</th><th>Un</th><th>Contratado</th><th>Acum. anterior</th><th>Nesta medição</th><th>Acum. atual</th><th>Saldo</th><th>Preço unit.</th><th>Valor</th></tr></thead><tbody>`;
+  for (const g of gruposContrato(c)){
+    h += `<tr class="g"><td colspan="10" class="l">${esc(g.nome)}</td></tr>`;
+    for (const i of g.itens){
+      const ant = acumAnterior(i.id, m.numero), q = Number(m.qtd[i.id] || 0), at = ant + q, saldo = i.qtd - at;
+      h += `<tr data-it="${i.id}" class="${saldo < -0.0005 ? "estouro" : ""}"><td>${esc(i.item)}</td><td class="l">${esc(i.descricao)}</td><td>${esc(i.un)}</td><td>${fmtQ(i.qtd)}</td><td>${ant ? fmtQ(ant) : "—"}</td>
+        <td>${travada ? (q ? fmtQ(q) : "—") : `<input class="mq" inputmode="decimal" value="${q ? fmtQ(q) : ""}">`}</td>
+        <td class="at">${at ? fmtQ(at) : "—"}</td><td class="sd">${fmtQ(r2(saldo*1000)/1000)}</td><td>${fmtR(i.pu)}</td><td class="vl">${q ? fmtR(r2(q*i.pu)) : "—"}</td></tr>`;
+    }
+  }
+  const v = valorMed(m, c), antV = r2(S.ext.meds.filter(x => x.numero < m.numero).reduce((s,x) => s + valorMed(x,c), 0));
+  h += `</tbody></table></div>
+    <div class="kpi" style="margin-top:12px"><div><b id="medTot">${fmtR(v)}</b><span>Valor desta medição</span></div>
+      <div><b>${fmtR(antV)}</b><span>Medido anteriormente</span></div><div><b id="medAcum">${fmtR(r2(antV+v))}</b><span>Acumulado (${fmtP((antV+v)/vc)})</span></div>
+      <div><b id="medSaldo">${fmtR(r2(vc-antV-v))}</b><span>Saldo do contrato</span></div>
+      ${previstoAte(c, m.numero) !== null ? `<div><b>${fmtR(previstoAte(c, m.numero))}</b><span>Previsto até o mês ${m.numero}</span></div>` : ""}</div></div>`;
+  // acompanhamento
+  if (m.id){
+    const d = m.datas || {};
+    h += `<div class="card"><h3>Acompanhamento</h3><div class="trilha">${STATUS_MED.map((s,k) => `<div class="${k <= idxMed(m.status) ? "ok" : ""}" style="--c:${s.cor}"><i></i><b>${s.t}</b><small>${d[s.k] ? fmtBR(d[s.k]) : (s.k === "rascunho" && m.criadoEm ? fmtBR(m.criadoEm.slice(0,10)) : "")}</small></div>`).join("")}</div>`;
+    if (ehGeral()){
+      const prox = STATUS_MED[idxMed(m.status) + 1];
+      h += `<div class="form" style="margin-top:12px">
+        <label>Nº da nota fiscal<input id="medNf" value="${esc(m.nf||"")}"></label>
+        <label>Valor pago (R$)<input id="medPago" inputmode="decimal" value="${m.valorPago ? fmtNum(m.valorPago) : ""}"></label>
+        <label>Retenções (R$)<input id="medRet" inputmode="decimal" value="${m.retencoes ? fmtNum(m.retencoes) : ""}"></label>
+        <label class="full">Observações<textarea id="medObs">${esc(m.obs||"")}</textarea></label></div>
+        <div class="row" style="margin-top:10px">
+          ${prox ? `<label>Data <input type="date" id="medDataSt" value="${hoje()}"></label><button class="btn pri peq" id="medAvanca">Marcar como: ${prox.t}</button>` : ""}
+          <button class="btn peq" id="medSalvaAcomp">Salvar NF / pagamento / obs.</button></div>`;
+    } else if (m.nf || m.obs) h += `<p>${m.nf ? "NF " + esc(m.nf) + "<br>" : ""}${esc(m.obs||"")}</p>`;
+    if ((m.historico||[]).length) h += `<details style="margin-top:10px"><summary>Histórico</summary>${m.historico.map(x => `<div class="hist">${fmtBR(x.data)} — ${esc(x.texto)}${x.por ? ` <small>(${esc(x.por)})</small>` : ""}</div>`).join("")}</details>`;
+    h += `</div>`;
+  }
+  el.innerHTML = h;
+  const bts = [];
+  if (!travada) bts.push(`<button class="btn pri" id="medSalvar">${m.id ? "Salvar medição" : "Criar medição"}</button>`);
+  if (m.id) bts.push(`<button class="btn" id="medExcel">Boletim em Excel</button>`);
+  if (m.id && ehGeral() && m.status === "rascunho") bts.push(`<button class="btn" id="medExcluir" style="color:var(--erro)">Excluir</button>`);
+  setSavebar(bts.join(""));
+}
+function syncMedDom(){
+  const m = S.medDraft; if (!m) return true;
+  if ($("#medIni")){ m.inicio = $("#medIni").value || m.inicio; m.fim = $("#medFim").value || m.fim; }
+  let ok = true;
+  $$("#v-medicoes tr[data-it] .mq").forEach(inp => {
+    const id = inp.closest("tr").dataset.it, s = inp.value.trim();
+    if (!s){ delete m.qtd[id]; inp.classList.remove("erro"); return; }
+    const v = num(s); if (v === null){ ok = false; inp.classList.add("erro"); return; }
+    inp.classList.remove("erro"); if (v) m.qtd[id] = v; else delete m.qtd[id];
+  });
+  return ok;
+}
+function atualizaTotaisMed(){
+  const c = S.ext.contrato, m = S.medDraft; if (!m) return;
+  syncMedDom();
+  $$("#v-medicoes tr[data-it]").forEach(tr => {
+    const i = c.itens.find(x => x.id === tr.dataset.it), q = Number(m.qtd[i.id] || 0), at = acumAnterior(i.id, m.numero) + q;
+    tr.querySelector(".at").textContent = at ? fmtQ(at) : "—"; tr.querySelector(".sd").textContent = fmtQ(r2((i.qtd-at)*1000)/1000);
+    tr.querySelector(".vl").textContent = q ? fmtR(r2(q*i.pu)) : "—"; tr.classList.toggle("estouro", i.qtd - at < -0.0005);
+  });
+  const vc = valorContrato(c), v = valorMed(m,c), antV = r2(S.ext.meds.filter(x => x.numero < m.numero).reduce((s,x) => s + valorMed(x,c), 0));
+  $("#medTot").textContent = fmtR(v); $("#medAcum").textContent = fmtR(r2(antV+v)); $("#medSaldo").textContent = fmtR(r2(vc-antV-v));
+}
+async function salvarMedicao(){
+  const m = S.medDraft;
+  if (!syncMedDom()){ toast("Há quantidade que não é número.", true); return; }
+  if (m.fim < m.inicio){ toast("O fim do período é antes do início.", true); return; }
+  const c = S.ext.contrato;
+  const est = c.itens.filter(i => acumAnterior(i.id, m.numero) + Number(m.qtd[i.id] || 0) - i.qtd > 0.0005);
+  if (est.length && !confirm(`Atenção: ${est.length} item(ns) passam da quantidade contratada (${est.map(i => i.item).join(", ")}).\nIsso normalmente exige aditivo. Salvar assim mesmo?`)) return;
+  const novo = !m.id;
+  if (novo){ m.id = uid(); m.criadoEm = agoraIso(); m.historico = [{ data:hoje(), texto:"Medição criada", por:S.nome||"" }]; }
+  m.obraNome = obraAtual().nome; m.valor = valorMed(m, c); m.atualizadoEm = agoraIso(); m.atualizadoPor = S.nome || "";
+  const b = $("#medSalvar"); if (b){ b.disabled = true; b.textContent = "Salvando..."; }
+  try {
+    await store.set(COL_MED, m.id, m);
+    await loadExtras(true); S.medSel = m.id; S.medDraft = null; renderMedicoes(); toast(novo ? "Medição criada." : "Medição salva.");
+  } catch(e){ console.error(e); toast("Erro ao salvar: " + e.message, true); if (novo) m.id = null; if (b){ b.disabled = false; b.textContent = "Salvar medição"; } }
+}
+async function mudaStatusMed(novoSt, data, texto){
+  const m = clone(medAtual());
+  m.status = novoSt; m.datas = { ...(m.datas||{}) }; if (data) m.datas[novoSt] = data;
+  m.historico = [...(m.historico||[]), { data: data || hoje(), texto, por:S.nome||"" }];
+  m.atualizadoEm = agoraIso();
+  await store.set(COL_MED, m.id, m);
+  await loadExtras(true); S.medDraft = null; renderMedicoes();
+}
+async function sugerirPeloDiario(){
+  const m = S.medDraft; syncMedDom();
+  const c = S.ext.contrato, soma = {};
+  let seg = mondayOf(m.inicio), semanas = 0, ligadas = 0;
+  while (seg <= m.fim){
+    const w = await getWeek(S.obraId, seg); semanas++;
+    for (const a of Object.values(w.atividades || {})){
+      if (!a.itemContrato) continue; ligadas++;
+      for (let d = 0; d < 7; d++){
+        const dia = addDays(seg, d); if (dia < m.inicio || dia > m.fim) continue;
+        const r = val(a.real, d); if (r) soma[a.itemContrato] = (soma[a.itemContrato] || 0) + r;
+      }
+    }
+    seg = addDays(seg, 7);
+  }
+  const ids = Object.keys(soma).filter(id => c.itens.find(i => i.id === id));
+  if (!ids.length){
+    toast(ligadas ? "Nenhuma produção lançada no período nas atividades ligadas ao contrato." : "Nenhuma atividade da Programação está ligada a item do contrato. Ligue na aba Programação da semana.", true); return;
+  }
+  for (const id of ids) m.qtd[id] = r2(soma[id] * 1000) / 1000;
+  renderMedEditor(); toast(`${ids.length} item(ns) preenchidos com o realizado do Diário (${semanas} semana${semanas>1?"s":""}). Confira antes de salvar.`);
+}
+
+async function exportarBoletim(){
+  const c = S.ext.contrato, m = medAtual(), o = obraAtual();
+  const wb = new ExcelJS.Workbook(); wb.creator = "Produção LM"; wb.created = new Date();
+  const ws = wb.addWorksheet(`BM ${String(m.numero).padStart(2,"0")}`, { pageSetup:{ paperSize:9, orientation:"landscape", fitToPage:true, fitToWidth:1, fitToHeight:0 }, views:[{ state:"frozen", ySplit:9 }] });
+  const W = [9, 14, 58, 7, 13, 14, 16, 13, 13, 13, 13, 16, 16, 9];
+  W.forEach((w,k) => ws.getColumn(k+1).width = w);
+  const N = W.length, AZ = "FF17375E", CL = "FFDCE6F1", MOEDA = '"R$" #,##0.00', Q = '#,##0.000;-#,##0.000;"-"';
+  const vc = valorContrato(c);
+  bloco(ws, 1, 1, 1, N, "BOLETIM DE MEDIÇÃO Nº " + String(m.numero).padStart(2,"0"), { bold:true, size:16, fill:AZ, color:"FFFFFFFF" });
+  bloco(ws, 2, 1, 2, N, "L.M. EMPREENDIMENTOS E CONSULTORIA LTDA. — CNPJ 32.109.890/0001-60", { bold:true, size:11 });
+  const linha = (r, rot, val, rot2, val2) => {
+    bloco(ws, r, 1, r, 2, rot, { bold:true, size:10, h:"left", fill:CL }); bloco(ws, r, 3, r, 6, val, { size:10, h:"left" });
+    bloco(ws, r, 7, r, 9, rot2, { bold:true, size:10, h:"left", fill:CL }); bloco(ws, r, 10, r, N, val2, { size:10, h:"left" });
+  };
+  linha(3, "OBRA", o.nome, "CONTRATANTE", c.contratante || "");
+  linha(4, "OBJETO", c.objeto || "", "PROCESSO / CONTRATO", [c.processo, c.numero].filter(Boolean).join(" · "));
+  linha(5, "PERÍODO", `${fmtBR(m.inicio)} a ${fmtBR(m.fim)}`, "VALOR DO CONTRATO", vc);
+  ws.getCell(5,10).numFmt = MOEDA;
+  linha(6, "INÍCIO (OS)", c.inicio ? fmtBR(c.inicio) : "", "PRAZO", c.prazoMeses ? c.prazoMeses + " meses" : "");
+  ws.getRow(7).height = 6;
+  const cab = ["ITEM","CÓDIGO","DESCRIÇÃO","UN","QTD CONTRATADA","PREÇO UNIT. (R$)","TOTAL CONTRATADO (R$)","ACUM. ANTERIOR","NESTA MEDIÇÃO","ACUM. ATUAL","SALDO","VALOR NESTA MEDIÇÃO (R$)","VALOR ACUMULADO (R$)","% EXEC."];
+  ws.mergeCells(8,1,8,N); sty(ws.getCell(8,1), { bold:true, size:10, fill:CL }); ws.getCell(8,1).value = "PLANILHA DE MEDIÇÃO";
+  cab.forEach((t,k) => { const cell = ws.getCell(9, k+1); cell.value = t; sty(cell, { bold:true, size:9, fill:AZ, color:"FFFFFFFF" }); });
+  ws.getRow(9).height = 32;
+  let r = 10; const linhasItens = [];
+  for (const g of gruposContrato(c)){
+    bloco(ws, r, 1, r, N, g.nome, { bold:true, size:10, h:"left", fill:CL }); r++;
+    for (const i of g.itens){
+      const ant = acumAnterior(i.id, m.numero), q = Number(m.qtd?.[i.id] || 0);
+      const vals = [i.item, i.codigo || "", i.descricao, i.un, i.qtd, i.pu, { formula:`ROUND(E${r}*F${r},2)` }, ant, q,
+        { formula:`H${r}+I${r}` }, { formula:`E${r}-J${r}` }, { formula:`ROUND(I${r}*F${r},2)` }, { formula:`ROUND(J${r}*F${r},2)` }, { formula:`IF(E${r}=0,0,J${r}/E${r})` }];
+      vals.forEach((v,k) => { const cell = ws.getCell(r, k+1); cell.value = v;
+        sty(cell, { size:9, h: k === 2 ? "left" : "center", fmt: [4,7,8,9,10].includes(k) ? Q : [5,6,11,12].includes(k) ? MOEDA : k === 13 ? "0.0%" : undefined }); });
+      linhasItens.push(r); r++;
+    }
+  }
+  const soma = colL => `SUM(${linhasItens.map(x => colL + x).join(",")})`;
+  bloco(ws, r, 1, r, 6, "TOTAIS", { bold:true, size:10, fill:CL });
+  [["G", 7], ["L", 12], ["M", 13]].forEach(([L, k]) => { const cell = ws.getCell(r, k); cell.value = { formula: soma(L) }; sty(cell, { bold:true, size:10, fill:CL, fmt:MOEDA }); });
+  [8,9,10,11,14].forEach(k => sty(ws.getCell(r,k), { fill:CL }));
+  const rt = r; r += 2;
+  const resumo = [["VALOR DO CONTRATO", vc], ["MEDIDO ANTERIORMENTE", { formula:`M${rt}-L${rt}` }], ["VALOR DESTA MEDIÇÃO", { formula:`L${rt}` }],
+    ["VALOR ACUMULADO", { formula:`M${rt}` }], ["SALDO DO CONTRATO", { formula:`${col(10)}${r}-M${rt}` }], ["% EXECUTADO", { formula:`M${rt}/${col(10)}${r}` }]];
+  resumo.forEach(([t, v], k) => {
+    bloco(ws, r+k, 7, r+k, 9, t, { bold:true, size:10, h:"left", fill:CL });
+    bloco(ws, r+k, 10, r+k, 11, v, { bold:k === 2, size:10, fmt: k === 5 ? "0.00%" : MOEDA });
+  });
+  ws.getCell(r+4, 10).value = { formula:`J${r}-M${rt}` }; ws.getCell(r+5, 10).value = { formula:`M${rt}/J${r}` };
+  // assinaturas
+  const ra = r + 9;
+  [[1,3,"L.M. EMPREENDIMENTOS E CONSULTORIA LTDA.\nResponsável técnico"],[7,11,"FISCALIZAÇÃO\n" + (c.contratante || "Contratante")]].forEach(([c1,c2,t]) => {
+    bloco(ws, ra, c1, ra, c2, "", { border:false }); ws.getCell(ra, c1).border = { top:thin };
+    for (let k = c1; k <= c2; k++) ws.getCell(ra, k).border = { top:thin };
+    bloco(ws, ra+1, c1, ra+2, c2, t, { size:10, border:false });
+  });
+  const buf = await wb.xlsx.writeBuffer();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([buf], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  a.download = `BM ${String(m.numero).padStart(2,"0")} - ${o.nome} - ${fmtBR(m.inicio).replace(/\//g,"-")} a ${fmtBR(m.fim).replace(/\//g,"-")}.xlsx`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast("Boletim gerado.");
+}
+
+/* ======================================================================
+   COMPRAS — requisições, cotação, pedido e recebimento
+   ====================================================================== */
+const STATUS_REQ = [
+  { k:"aberta",    t:"Aberta",            cor:"#FFC14D" },
+  { k:"aprovada",  t:"Aprovada",          cor:"#3DF2FF" },
+  { k:"cotacao",   t:"Em cotação",        cor:"#00A3DA" },
+  { k:"pedido",    t:"Pedido emitido",    cor:"#7B5CFF" },
+  { k:"parcial",   t:"Entregue parcial",  cor:"#C792EA" },
+  { k:"entregue",  t:"Entregue",          cor:"#2BFF9A" },
+  { k:"recusada",  t:"Recusada",          cor:"#FF6B7A" },
+  { k:"cancelada", t:"Cancelada",         cor:"#8AA4BC" }
+];
+const stReq = k => STATUS_REQ.find(s => s.k === k) || STATUS_REQ[0];
+const chipReq = k => { const s = stReq(k); return `<span class="chip" style="--c:${s.cor}">${s.t}</span>`; };
+const reqFechada = r => ["entregue","recusada","cancelada"].includes(r.status);
+const reqAtrasada = r => !reqFechada(r) && r.necessidade && r.necessidade < hoje();
+const recebido = (r, k) => (r.recebimentos || []).reduce((s,x) => s + Number(x.qtd?.[k] || 0), 0);
+
+function renderCompras(){
+  const el = $("#v-compras");
+  if (!S.obraId && !S.reqTodas){ el.innerHTML = semObra(); setSavebar(""); return; }
+  if (!S.reqTodas && precisaCarregar(el, renderCompras)) return;
+  if (S.reqSel){ renderReqDetalhe(); return; }
+  setSavebar(`<button class="btn pri" id="reqNova">+ Nova requisição</button>`);
+  const lista = S.reqTodas ? (S.todasReqs || []) : S.ext.reqs;
+  const cont = k => lista.filter(r => r.status === k).length;
+  let h = `<div class="pipe">${["aberta","aprovada","cotacao","pedido","parcial"].map(k => { const s = stReq(k); return `<div style="--c:${s.cor}"><span>${s.t}</span><b>${cont(k)}</b></div>`; }).join("")}
+    <div style="--c:#FF6B7A"><span>Atrasadas</span><b>${lista.filter(reqAtrasada).length}</b><small>data de necessidade vencida</small></div></div>`;
+  h += `<div class="card"><div class="row" style="justify-content:space-between">
+      <h3 style="margin:0">Requisições de compra — ${S.reqTodas ? "todas as obras" : esc(obraAtual().nome)}</h3>
+      <span class="row">${ehGeral() ? `<button class="btn peq ${S.reqTodas ? "on" : ""}" id="reqTodas">${S.reqTodas ? "Só esta obra" : "Todas as obras"}</button>` : ""}
+      <select id="reqFiltro">${[["pendentes","Pendentes"],["atrasadas","Atrasadas"],["todas","Todas"],...STATUS_REQ.map(s => [s.k, s.t])].map(([k,t]) => `<option value="${k}" ${S.reqFiltro===k?"selected":""}>${t}</option>`).join("")}</select></span></div>`;
+  const f = S.reqFiltro;
+  const vis = lista.filter(r => f === "todas" ? true : f === "pendentes" ? !reqFechada(r) : f === "atrasadas" ? reqAtrasada(r) : r.status === f)
+                   .sort((a,b) => (reqAtrasada(b) - reqAtrasada(a)) || (b.urgente - a.urgente) || (b.criadoEm||"").localeCompare(a.criadoEm||""));
+  if (!vis.length) h += `<div class="vazio">Nenhuma requisição ${f === "todas" ? "" : "neste filtro"}.</div>`;
+  else {
+    h += `<div class="tbwrap"><table class="tb"><thead><tr>${S.reqTodas ? `<th class="l">Obra</th>` : ""}<th>Nº</th><th class="l">Itens</th><th>Pedido em</th><th>Precisa até</th><th>Solicitante</th><th>Situação</th><th>Fornecedor / valor</th><th></th></tr></thead><tbody>`;
+    for (const r of vis){
+      h += `<tr class="${reqAtrasada(r) ? "atraso" : ""}">${S.reqTodas ? `<td class="l">${esc(r.obraNome||"")}</td>` : ""}<td><b>${r.numero}</b>${r.urgente ? `<br><span class="chip" style="--c:#FF6B7A">urgente</span>` : ""}</td>
+        <td class="l">${r.itens.slice(0,3).map(i => `${esc(i.descricao)} <small>(${fmtQ(i.qtd)} ${esc(i.un)})</small>`).join("<br>")}${r.itens.length > 3 ? `<br><small>+${r.itens.length-3} itens</small>` : ""}</td>
+        <td>${fmtBR((r.criadoEm||"").slice(0,10))}</td><td>${r.necessidade ? fmtBR(r.necessidade) + (reqAtrasada(r) ? `<br><small class="neg">atrasada</small>` : "") : "—"}</td>
+        <td>${esc(r.solicitante||"")}</td><td>${chipReq(r.status)}</td>
+        <td><small>${r.pedido ? esc(r.pedido.fornecedor) + "<br>" + fmtR(r.pedido.valor) : ""}</small></td>
+        <td><button class="btn peq" data-reqabre="${r.id}">Abrir</button></td></tr>`;
+    }
+    h += `</tbody></table></div>`;
+  }
+  h += `</div>`;
+  // resumo de gastos
+  const comPedido = lista.filter(r => r.pedido && !["cancelada","recusada"].includes(r.status));
+  if (comPedido.length){
+    const porForn = {};
+    for (const r of comPedido){ const k = r.pedido.fornecedor || "—"; porForn[k] = r2((porForn[k] || 0) + (Number(r.pedido.valor) || 0)); }
+    const tot = r2(Object.values(porForn).reduce((s,v) => s + v, 0));
+    h += `<div class="card"><h3>Comprado ${S.reqTodas ? "(todas as obras)" : "nesta obra"} — ${fmtR(tot)}</h3>${Object.entries(porForn).sort((a,b) => b[1]-a[1]).map(([f,v]) =>
+      `<div class="barlinha"><span>${esc(f)}</span><div class="barra"><i style="width:${tot ? v/tot*100 : 0}%"></i></div><b>${fmtR(v)}</b></div>`).join("")}</div>`;
+  }
+  el.innerHTML = h;
+}
+function formNovaReq(){
+  const c = S.ext.contrato;
+  const opts = (c?.itens || []).map(i => `<option value="${i.id}">${esc(i.item)} — ${esc(i.descricao.slice(0,70))}</option>`).join("");
+  S.reqLinhas = S.reqLinhas || [{ descricao:"", qtd:"", un:"", itemContrato:"" }];
+  return `<div class="row" style="margin-bottom:10px"><button class="btn peq" id="reqVoltar">‹ Voltar</button></div>
+    <div class="card"><h3>Nova requisição de compra — ${esc(obraAtual().nome)}</h3>
+    <div class="form">
+      <label>Solicitante<input id="rqSol" value="${esc(S.nome||"")}"></label>
+      <label>Precisa na obra até<input type="date" id="rqNec" value="${addDays(hoje(), 7)}"></label>
+      <label class="chk"><input type="checkbox" id="rqUrg"> Urgente</label>
+    </div>
+    <h3 style="margin-top:14px">Materiais / serviços</h3>
+    <div id="rqLinhas">${S.reqLinhas.map((l,k) => `<div class="rqlin" data-k="${k}">
+      <input data-f="descricao" placeholder="Material (ex.: BRITA GRADUADA SIMPLES)" value="${esc(l.descricao)}">
+      <input data-f="qtd" inputmode="decimal" placeholder="Qtd" value="${esc(l.qtd)}">
+      <input data-f="un" list="unidades" placeholder="Un" value="${esc(l.un)}">
+      ${opts ? `<select data-f="itemContrato"><option value="">Serviço do contrato (opcional)</option>${opts.replace(`value="${l.itemContrato}"`, `value="${l.itemContrato}" selected`)}</select>` : ""}
+      <button class="x" data-rqrm="${k}" title="Remover">✕</button></div>`).join("")}</div>
+    <button class="btn peq" id="rqAddLin">+ Linha</button>
+    <label class="full" style="display:block;margin-top:12px">Observações (especificação, local de entrega, fornecedor sugerido...)<textarea id="rqObs"></textarea></label>
+  </div>`;
+}
+function syncReqLinhas(){
+  S.reqLinhas = $$("#rqLinhas .rqlin").map(d => { const o = {}; d.querySelectorAll("[data-f]").forEach(i => o[i.dataset.f] = i.value.trim()); return o; });
+}
+async function salvarNovaReq(){
+  syncReqLinhas();
+  const itens = [];
+  for (const l of S.reqLinhas){
+    if (!l.descricao && !l.qtd) continue;
+    const q = num(l.qtd);
+    if (!l.descricao || q === null || q <= 0){ toast("Cada linha precisa de material e quantidade.", true); return; }
+    itens.push({ descricao:l.descricao.toUpperCase(), qtd:q, un:normUn(l.un || "un"), itemContrato:l.itemContrato || null });
+  }
+  if (!itens.length){ toast("Inclua ao menos um material.", true); return; }
+  const sol = $("#rqSol").value.trim(); if (!sol){ toast("Informe o solicitante.", true); return; }
+  const numero = Math.max(0, ...S.ext.reqs.map(r => r.numero || 0)) + 1;
+  const r = { id:uid(), obraId:S.obraId, obraNome:obraAtual().nome, numero, solicitante:sol, necessidade:$("#rqNec").value || null,
+    urgente:$("#rqUrg").checked, itens, obs:$("#rqObs").value.trim(), status:"aberta", cotacoes:[], recebimentos:[],
+    criadoEm:agoraIso(), historico:[{ data:hoje(), texto:"Requisição aberta", por:sol }] };
+  if (S.nome !== sol && !S.nome){ S.nome = sol; localStorage.setItem("diarioLM_nome", sol); }
+  await store.set(COL_REQ, r.id, r);
+  S.reqLinhas = null; S.reqNova = false; await loadExtras(true); S.reqSel = r.id; renderCompras(); toast(`Requisição nº ${numero} aberta.`);
+}
+function reqAtual(){ return (S.reqTodas ? (S.todasReqs || []) : S.ext.reqs).find(r => r.id === S.reqSel) || S.ext.reqs.find(r => r.id === S.reqSel); }
+function renderReqDetalhe(){
+  const el = $("#v-compras");
+  if (S.reqSel === "nova"){ el.innerHTML = formNovaReq(); setSavebar(`<button class="btn pri" id="rqSalvar">Abrir requisição</button>`); return; }
+  const r = reqAtual(); if (!r){ S.reqSel = null; renderCompras(); return; }
+  const g = ehGeral(), fechada = reqFechada(r);
+  let h = `<div class="row" style="margin-bottom:10px"><button class="btn peq" id="reqVoltar">‹ Voltar às requisições</button></div>
+    <div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Requisição nº ${r.numero} — ${esc(r.obraNome||"")}</h3><span>${r.urgente ? `<span class="chip" style="--c:#FF6B7A">urgente</span> ` : ""}${chipReq(r.status)}</span></div>
+    <div class="dados">
+      <div><span>Solicitante</span><b>${esc(r.solicitante||"")}</b></div>
+      <div><span>Aberta em</span><b>${fmtBR((r.criadoEm||"").slice(0,10))}</b></div>
+      <div><span>Precisa até</span><b class="${reqAtrasada(r) ? "neg" : ""}">${r.necessidade ? fmtBR(r.necessidade) : "—"}</b></div>
+      ${r.obs ? `<div class="full"><span>Observações</span><b>${esc(r.obs)}</b></div>` : ""}
+    </div>
+    <div class="tbwrap" style="margin-top:10px"><table class="tb"><thead><tr><th class="l">Material</th><th>Qtd pedida</th><th>Un</th><th>Recebido</th><th>Falta</th><th class="l">Serviço do contrato</th></tr></thead><tbody>${
+      r.itens.map((i,k) => { const rc = recebido(r,k), it = S.ext.contrato?.itens?.find(x => x.id === i.itemContrato);
+        return `<tr><td class="l">${esc(i.descricao)}</td><td>${fmtQ(i.qtd)}</td><td>${esc(i.un)}</td><td>${rc ? fmtQ(rc) : "—"}</td><td>${fmtQ(Math.max(0, r2((i.qtd-rc)*1000)/1000))}</td><td class="l"><small>${it ? esc(it.item + " — " + it.descricao.slice(0,60)) : "—"}</small></td></tr>`; }).join("")
+    }</tbody></table></div></div>`;
+  // aprovação
+  if (r.status === "aberta" && g) h += `<div class="card"><h3>Aprovação</h3><div class="row"><button class="btn pri peq" id="rqAprovar">Aprovar</button>
+      <button class="btn peq" id="rqRecusar" style="color:var(--erro)">Recusar</button></div></div>`;
+  // cotações
+  if (["aprovada","cotacao","pedido","parcial","entregue"].includes(r.status) && (g || (r.cotacoes||[]).length)){
+    h += `<div class="card"><h3>Cotações</h3>`;
+    if ((r.cotacoes||[]).length){
+      const menor = Math.min(...r.cotacoes.map(x => x.valor));
+      h += `<div class="tbwrap"><table class="tb"><thead><tr><th class="l">Fornecedor</th><th>Valor total</th><th>Prazo de entrega</th><th class="l">Condição / obs.</th><th></th></tr></thead><tbody>${
+        r.cotacoes.map((x,k) => `<tr class="${x.valor === menor ? "melhor" : ""}"><td class="l">${esc(x.fornecedor)}${x.valor === menor && r.cotacoes.length > 1 ? ` <span class="chip" style="--c:#2BFF9A">menor</span>` : ""}</td><td>${fmtR(x.valor)}</td><td>${esc(x.prazo||"")}</td><td class="l">${esc(x.obs||"")}</td>
+          <td>${g && ["aprovada","cotacao"].includes(r.status) ? `<button class="btn peq" data-cotescolhe="${k}">Fechar pedido</button> <button class="x" data-cotrm="${k}">✕</button>` : ""}</td></tr>`).join("")}</tbody></table></div>`;
+    }
+    if (g && ["aprovada","cotacao"].includes(r.status)) h += `<div class="rqlin cot" style="margin-top:10px"><input id="ctForn" placeholder="Fornecedor"><input id="ctValor" inputmode="decimal" placeholder="Valor total R$">
+        <input id="ctPrazo" placeholder="Prazo (ex.: 3 dias)"><input id="ctObs" placeholder="Condição de pagamento / obs."><button class="btn peq" id="ctAdd">+ Cotação</button></div>
+        <p class="nota">Registre as cotações recebidas e clique em “Fechar pedido” na escolhida — ou feche direto sem cotação abaixo.</p>
+        <button class="btn peq" id="rqPedidoDireto">Fechar pedido sem cotação</button>`;
+    h += `</div>`;
+  }
+  // pedido
+  if (r.pedido) h += `<div class="card"><h3>Pedido</h3><div class="dados">
+      <div><span>Fornecedor</span><b>${esc(r.pedido.fornecedor)}</b></div><div><span>Valor</span><b>${fmtR(r.pedido.valor)}</b></div>
+      <div><span>Nº do pedido</span><b>${esc(r.pedido.numero||"—")}</b></div><div><span>Emitido em</span><b>${fmtBR(r.pedido.data)}</b></div>
+      <div><span>Prazo de entrega</span><b>${esc(r.pedido.prazo||"—")}</b></div><div><span>Condição</span><b>${esc(r.pedido.condicao||"—")}</b></div></div></div>`;
+  if (S.pedidoForm && g) h += `<div class="card"><h3>Fechar pedido</h3><div class="form">
+      <label>Fornecedor<input id="pdForn" value="${esc(S.pedidoForm.fornecedor||"")}"></label>
+      <label>Valor total (R$)<input id="pdValor" inputmode="decimal" value="${S.pedidoForm.valor ? fmtNum(S.pedidoForm.valor) : ""}"></label>
+      <label>Nº do pedido / OC<input id="pdNum"></label>
+      <label>Prazo de entrega<input id="pdPrazo" value="${esc(S.pedidoForm.prazo||"")}"></label>
+      <label class="full">Condição de pagamento<input id="pdCond" value="${esc(S.pedidoForm.obs||"")}"></label></div>
+      <div class="row" style="margin-top:10px"><button class="btn pri peq" id="pdSalvar">Emitir pedido</button><button class="btn peq" id="pdCancelar">Cancelar</button></div></div>`;
+  // recebimento (obra ou escritório)
+  if (["pedido","parcial"].includes(r.status)){
+    h += `<div class="card"><h3>Registrar recebimento na obra</h3>
+      <div class="tbwrap"><table class="tb"><thead><tr><th class="l">Material</th><th>Falta receber</th><th>Recebido agora</th></tr></thead><tbody>${
+        r.itens.map((i,k) => `<tr data-k="${k}"><td class="l">${esc(i.descricao)}</td><td>${fmtQ(Math.max(0, r2((i.qtd - recebido(r,k))*1000)/1000))} ${esc(i.un)}</td><td><input class="rcq" inputmode="decimal"></td></tr>`).join("")}</tbody></table></div>
+      <div class="form" style="margin-top:10px"><label>Data<input type="date" id="rcData" value="${hoje()}"></label>
+        <label>Nota fiscal / ticket<input id="rcDoc"></label><label>Recebido por<input id="rcPor" value="${esc(S.nome||"")}"></label>
+        <label class="full">Observação<input id="rcObs"></label></div>
+      <div class="row" style="margin-top:10px"><button class="btn pri peq" id="rcSalvar">Confirmar recebimento</button></div></div>`;
+  }
+  if ((r.recebimentos||[]).length) h += `<div class="card"><h3>Recebimentos</h3>${r.recebimentos.map(x => `<div class="hist">${fmtBR(x.data)} — ${
+      Object.entries(x.qtd).map(([k,q]) => `${fmtQ(q)} ${esc(r.itens[k]?.un||"")} de ${esc(r.itens[k]?.descricao||"")}`).join("; ")}${x.doc ? ` · NF/ticket ${esc(x.doc)}` : ""}${x.por ? ` <small>(${esc(x.por)})</small>` : ""}${x.obs ? `<br><small>${esc(x.obs)}</small>` : ""}</div>`).join("")}</div>`;
+  if ((r.historico||[]).length) h += `<div class="card"><details><summary>Histórico</summary>${r.historico.map(x => `<div class="hist">${fmtBR(x.data)} — ${esc(x.texto)}${x.por ? ` <small>(${esc(x.por)})</small>` : ""}</div>`).join("")}</details></div>`;
+  el.innerHTML = h;
+  const podeCancelar = !fechada && (g || r.status === "aberta");
+  setSavebar(podeCancelar ? `<button class="btn" id="rqCancelar" style="color:var(--erro)">Cancelar requisição</button>` : "");
+}
+async function gravaReq(r, texto, extra){
+  r = { ...r, ...extra, atualizadoEm:agoraIso() };
+  if (texto) r.historico = [...(r.historico||[]), { data:hoje(), texto, por:S.nome||"" }];
+  await store.set(COL_REQ, r.id, r);
+  await loadExtras(true);
+  if (S.reqTodas) S.todasReqs = await store.list(COL_REQ);
+  renderCompras();
+}
+
+/* ------------------------------ eventos ------------------------------ */
+document.addEventListener("click", async ev => {
+  const t = ev.target.closest("button,a"); if (!t) return;
+  try {
+    // contrato
+    if (t.id === "ctLer"){ await lerPlanilha(); return; }
+    if (t.id === "ctConfirmaImp"){ await salvarImport(); return; }
+    if (t.id === "ctReimportar"){ $("#v-contrato").innerHTML = `<div class="card">${formImportar()}</div>`; return; }
+    if (t.id === "ctCancelaImp"){ renderContrato(); return; }
+    if (t.id === "ctEditar"){ $("#v-contrato").innerHTML = formDados(); return; }
+    if (t.id === "cdSalvar"){ await salvarDados(); return; }
+    if (t.id === "cdCancelar"){ renderContrato(); return; }
+    // medições
+    if (t.id === "medNova"){ novaMedicao(); return; }
+    if (t.dataset.medabre){ S.medSel = t.dataset.medabre; S.medDraft = null; renderMedicoes(); return; }
+    if (t.id === "medVoltar"){ S.medSel = null; S.medDraft = null; renderMedicoes(); return; }
+    if (t.id === "medSalvar"){ await salvarMedicao(); return; }
+    if (t.id === "medSugerir"){ await sugerirPeloDiario(); return; }
+    if (t.id === "medExcel"){ await exportarBoletim(); return; }
+    if (t.id === "medTodas"){ S.todasMeds = await store.list(COL_MED); renderMedicoes(); return; }
+    if (t.id === "medReabrir"){ ev.preventDefault();
+      if (!confirm("Reabrir a medição para corrigir quantidades? Ela volta para 'Em elaboração'.")) return;
+      await mudaStatusMed("rascunho", null, "Reaberta para correção"); return; }
+    if (t.id === "medAvanca"){
+      const m = medAtual(), prox = STATUS_MED[idxMed(m.status) + 1];
+      if (S.medDraft && syncMedDom() && JSON.stringify(S.medDraft.qtd) !== JSON.stringify(m.qtd)){ toast("Salve as quantidades antes de mudar a situação.", true); return; }
+      await mudaStatusMed(prox.k, $("#medDataSt").value || hoje(), prox.t); toast(`Medição ${m.numero}: ${prox.t}.`); return;
+    }
+    if (t.id === "medSalvaAcomp"){
+      const m = clone(medAtual());
+      const pago = $("#medPago").value.trim(), ret = $("#medRet").value.trim();
+      if ((pago && num(pago) === null) || (ret && num(ret) === null)){ toast("Valores precisam ser números.", true); return; }
+      Object.assign(m, { nf:$("#medNf").value.trim(), valorPago: pago ? num(pago) : null, retencoes: ret ? num(ret) : null, obs:$("#medObs").value.trim(), atualizadoEm:agoraIso() });
+      await store.set(COL_MED, m.id, m); await loadExtras(true); S.medDraft = null; renderMedicoes(); toast("Acompanhamento salvo."); return;
+    }
+    if (t.id === "medExcluir"){
+      const m = medAtual();
+      if (S.ext.meds.some(x => x.numero > m.numero)){ toast("Só dá para excluir a última medição.", true); return; }
+      if (!confirm(`Excluir a medição nº ${m.numero}?`)) return;
+      await store.del(COL_MED, m.id); await loadExtras(true); S.medSel = null; S.medDraft = null; renderMedicoes(); toast("Medição excluída."); return;
+    }
+    // compras
+    if (t.id === "reqNova"){ S.reqSel = "nova"; S.reqLinhas = null; renderCompras(); return; }
+    if (t.id === "reqVoltar"){ S.reqSel = null; S.pedidoForm = null; renderCompras(); return; }
+    if (t.dataset.reqabre){ S.reqSel = t.dataset.reqabre; S.pedidoForm = null; renderCompras(); return; }
+    if (t.id === "reqTodas"){ S.reqTodas = !S.reqTodas; if (S.reqTodas) S.todasReqs = await store.list(COL_REQ); renderCompras(); return; }
+    if (t.id === "rqAddLin"){ syncReqLinhas(); S.reqLinhas.push({ descricao:"", qtd:"", un:"", itemContrato:"" }); renderReqDetalhe(); return; }
+    if (t.dataset.rqrm !== undefined){ syncReqLinhas(); S.reqLinhas.splice(+t.dataset.rqrm, 1); if (!S.reqLinhas.length) S.reqLinhas.push({ descricao:"", qtd:"", un:"", itemContrato:"" }); renderReqDetalhe(); return; }
+    if (t.id === "rqSalvar"){ await salvarNovaReq(); return; }
+    const r = S.reqSel && S.reqSel !== "nova" ? reqAtual() : null;
+    if (!r) return;
+    if (t.id === "rqAprovar"){ await gravaReq(r, "Aprovada", { status:"aprovada" }); toast("Requisição aprovada."); return; }
+    if (t.id === "rqRecusar"){ const mot = prompt("Motivo da recusa:"); if (mot === null) return; await gravaReq(r, "Recusada: " + mot, { status:"recusada" }); return; }
+    if (t.id === "rqCancelar"){ const mot = prompt("Motivo do cancelamento:"); if (mot === null) return; await gravaReq(r, "Cancelada: " + mot, { status:"cancelada" }); return; }
+    if (t.id === "ctAdd"){
+      const forn = $("#ctForn").value.trim(), v = num($("#ctValor").value);
+      if (!forn || v === null){ toast("Informe fornecedor e valor.", true); return; }
+      const cot = { fornecedor:forn, valor:v, prazo:$("#ctPrazo").value.trim(), obs:$("#ctObs").value.trim(), data:hoje() };
+      await gravaReq(r, `Cotação: ${forn} ${fmtR(v)}`, { cotacoes:[...(r.cotacoes||[]), cot], status:"cotacao" }); return;
+    }
+    if (t.dataset.cotrm !== undefined){ const cs = [...r.cotacoes]; cs.splice(+t.dataset.cotrm, 1); await gravaReq(r, null, { cotacoes:cs, status: cs.length ? "cotacao" : "aprovada" }); return; }
+    if (t.dataset.cotescolhe !== undefined){ S.pedidoForm = { ...r.cotacoes[+t.dataset.cotescolhe] }; renderReqDetalhe(); $("#pdNum")?.focus(); return; }
+    if (t.id === "rqPedidoDireto"){ S.pedidoForm = {}; renderReqDetalhe(); $("#pdForn")?.focus(); return; }
+    if (t.id === "pdCancelar"){ S.pedidoForm = null; renderReqDetalhe(); return; }
+    if (t.id === "pdSalvar"){
+      const forn = $("#pdForn").value.trim(), v = num($("#pdValor").value);
+      if (!forn || v === null){ toast("Informe fornecedor e valor do pedido.", true); return; }
+      const pedido = { fornecedor:forn, valor:v, numero:$("#pdNum").value.trim(), prazo:$("#pdPrazo").value.trim(), condicao:$("#pdCond").value.trim(), data:hoje() };
+      S.pedidoForm = null; await gravaReq(r, `Pedido emitido: ${forn} ${fmtR(v)}`, { pedido, status:"pedido" }); toast("Pedido emitido."); return;
+    }
+    if (t.id === "rcSalvar"){
+      const qtd = {}; let erro = false;
+      $$("#v-compras tr[data-k] .rcq").forEach(i => { const s = i.value.trim(); if (!s) return; const v = num(s); if (v === null || v < 0){ erro = true; return; } if (v) qtd[i.closest("tr").dataset.k] = v; });
+      if (erro){ toast("Quantidade recebida inválida.", true); return; }
+      if (!Object.keys(qtd).length){ toast("Informe a quantidade recebida de ao menos um material.", true); return; }
+      const rec = { data:$("#rcData").value || hoje(), doc:$("#rcDoc").value.trim(), por:$("#rcPor").value.trim(), obs:$("#rcObs").value.trim(), qtd };
+      const recs = [...(r.recebimentos||[]), rec];
+      const tudo = r.itens.every((i,k) => recs.reduce((s,x) => s + Number(x.qtd?.[k] || 0), 0) >= i.qtd - 0.0005);
+      await gravaReq(r, tudo ? "Recebimento — entrega completa" : "Recebimento parcial", { recebimentos:recs, status: tudo ? "entregue" : "parcial" });
+      toast(tudo ? "Entrega completa registrada." : "Recebimento parcial registrado."); return;
+    }
+  } catch(e){ console.error(e); toast("Erro: " + e.message, true); }
+});
+document.addEventListener("input", ev => { if (ev.target.classList?.contains("mq")) atualizaTotaisMed(); });
+document.addEventListener("change", ev => {
+  if (ev.target.id === "reqFiltro"){ S.reqFiltro = ev.target.value; renderCompras(); }
 });
 
 async function carregaObras(){ S.obras = await store.list(COL_OBRAS); }

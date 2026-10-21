@@ -196,9 +196,9 @@ const SISTEMAS = [
     senha: null
   },
   {
-    nome: "Produção",
+    nome: "Obras",
     icone: "producao",
-    descricao: "Programação semanal e diário de produção das obras, com exportação para Excel.",
+    descricao: "Diário e programação, contrato, medições e compras de cada obra.",
     url: "producao/",
     senha: null
   },
@@ -223,7 +223,7 @@ const h = new Date().getHours();
 document.getElementById("saud").textContent = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
 
 /* ---------- texto digitando ---------- */
-const frases = ["Selecione o sistema que você quer acessar.", "Licitações · Produção · Controle", "Tudo da LM em um só lugar."];
+const frases = ["Selecione o sistema que você quer acessar.", "Licitações · Obras · Controle", "Tudo da LM em um só lugar."];
 const typed = document.getElementById("typed");
 if (reduz) typed.textContent = frases[0];
 else (function digitar(f = 0, i = 0, apagando = false){
