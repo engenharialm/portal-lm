@@ -196,6 +196,7 @@
   table.gantt td,table.gantt th{padding-top:4px;padding-bottom:4px}
   table.gantt input[type=date]{font-size:12px}
   table.gantt input[type=date]{width:132px;padding:5px;border:1px solid var(--borda);border-radius:8px}
+  table.gantt input.pp,table.gantt input.pe{padding:4px 6px;text-align:right;border:1px solid var(--borda);border-radius:6px}
   .regua{position:relative;height:18px}
   .regua span{position:absolute;top:0;font-size:10px;text-align:center;border-left:1px solid var(--borda);white-space:nowrap;overflow:hidden}
   .trilho{position:relative;height:16px}
@@ -365,7 +366,7 @@
   tr.memrow > td{background:rgba(61,242,255,.04)!important}
   .rdot input,#rdoChuva,#rdoObsFisc,.mem .memt input,.mem select,.foto select,.foto input{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
   .foto{border-color:var(--lm-line);background:rgba(255,255,255,.02)}
-  table.gantt input[type=date]{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
+  table.gantt input.pp,table.gantt input.pe,table.gantt input[type=date]{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
   .regua span{color:var(--lm-muted);border-left-color:var(--lm-line)}
   .trilho b{background:linear-gradient(90deg,var(--lm-acc2),var(--lm-cyan));box-shadow:0 0 8px rgba(61,242,255,.25)}
   .trilho b.bm{background:var(--lm-violet)}
@@ -3095,6 +3096,7 @@ function renderPlanejamento(){
       ${ehGeral() ? `<label>Início da obra <input type="date" id="plIni" value="${p?.inicio || c.inicio || "2026-11-01"}"></label>
       <button class="btn ${p ? "" : "pri"} peq" id="plGerar">${p ? "Refazer prévia" : "Gerar prévia de programação"}</button>` : ""}
       ${p ? `<button class="btn peq" id="plMsp">Exportar para MS Project (.xml)</button>` : ""}
+      ${p && ehGeral() ? `<button class="btn peq" id="plAjusta" title="Duração = quantidade ÷ (produção por dia × equipes), mantendo a sequência de cada grupo">Ajustar durações às produções</button>` : ""}
       ${ehGeral() ? `<label class="btn peq" style="cursor:pointer">Importar do MS Project<input type="file" id="plImp" accept=".xml" hidden></label>` : ""}
     </div>
     <p class="nota">Ao <b>salvar</b>, a programação de cada semana da obra vai direto para o Diário (semanas já editadas à mão ou com realizado não são alteradas). No MS Project: <b>Arquivo → Abrir → XML</b> para abrir o exportado; para devolver, <b>Arquivo → Salvar como → XML (*.xml)</b> e importe aqui. A prévia segue os meses do cronograma da proposta e dá a cada serviço um tempo proporcional às horas de equipamento/mão de obra das composições — ajuste no Project ou nas datas abaixo.</p></div>`;
@@ -3111,7 +3113,7 @@ function renderPlanejamento(){
   const ro = !ehGeral();
   h += `<div class="card"><div class="kpi" style="margin-bottom:10px"><div><b>${fmtBR(proxUtil(ini, fer))}</b><span>Início (1º dia útil)</span></div><div><b>${fmtBR(fim)}</b><span>Término</span></div>
       <div><b>${contaUteis(ini, fim, fer)}</b><span>Dias úteis (sem sábados, domingos e feriados)</span></div><div><b>${p.tarefas.filter(t => t.tipo !== "meta").length}</b><span>Tarefas</span></div></div>
-    <div class="tbwrap"><table class="tb gantt"><thead><tr><th>EAP</th><th class="l">Tarefa</th><th>Início</th><th>Fim</th><th>Dias úteis</th><th>% medido</th><th class="gt"><div class="regua">${regua}</div></th></tr></thead><tbody>`;
+    <div class="tbwrap"><table class="tb gantt"><thead><tr><th>EAP</th><th class="l">Tarefa</th><th>Início</th><th>Fim</th><th>Dias úteis</th><th title="Produção de 1 equipe por dia (8 h), tirada da composição">Produção/dia<br><small>1 equipe</small></th><th>Equipes</th><th title="Quantidade ÷ (produção × equipes)">Dias<br>necessários</th><th>% medido</th><th class="gt"><div class="regua">${regua}</div></th></tr></thead><tbody>`;
   for (const t of p.tarefas){
     const it = c.itens.find(i => i.id === t.id);
     const pm = it && it.qtd ? Math.min(1, acumAnterior(it.id, Infinity) / it.qtd) : null;
@@ -3120,12 +3122,49 @@ function renderPlanejamento(){
       <td class="l" title="${esc((t.item ? t.item + " - " : "") + t.nome)}">${meta ? "" : `<small>${esc(t.item || "")}</small> `}${esc(t.nome)}${t.paralela ? ` <small>(contínua)</small>` : ""}</td>
       <td>${meta || ro ? fmtBR(t.inicio) : `<input type="date" class="pi" value="${t.inicio}">`}</td>
       <td>${meta || ro ? fmtBR(t.fim) : `<input type="date" class="pf" value="${t.fim}">`}</td>
-      <td>${contaUteis(t.inicio, t.fim, fer)}</td><td>${pm !== null && pm > 0 ? fmtP(pm) : (meta ? "" : "—")}</td>
+      <td>${contaUteis(t.inicio, t.fim, fer)}</td>${celProd(t, it, fer, ro)}<td>${pm !== null && pm > 0 ? fmtP(pm) : (meta ? "" : "—")}</td>
       <td class="gt"><div class="trilho">${hojeX}<b class="${meta ? "bm" : t.paralela ? "bp" : ""}" style="left:${pos(t.inicio)}%;width:${Math.max(.6, pos(addDays(t.fim,1)) - pos(t.inicio))}%">${pm ? `<u style="width:${pm*100}%"></u>` : ""}</b></div></td></tr>`;
   }
   h += `</tbody></table></div><p class="nota">Feriados considerados: ${fer.filter(x => x >= ini && x <= fim).map(fmtBR).join(", ") || "nenhum no período"}. A linha vertical marca hoje.</p></div>`;
   el.innerHTML = h;
   setSavebar(ehGeral() ? `<button class="btn pri" id="plSalvar">Salvar programação</button>` : "");
+}
+// produção por dia (1 equipe) de um serviço: a ajustada na tarefa ou a da composição (prodH × 8 h)
+const prodDiaPadrao = it => it?.prodH ? Math.round(it.prodH * 8 * 100) / 100 : null;
+const prodDiaTarefa = (t, it) => t.prodDia != null ? t.prodDia : prodDiaPadrao(it);
+function diasNecessarios(t, it){
+  const pd = prodDiaTarefa(t, it), eq = Number(t.equipes) || 1;
+  return it && pd ? Math.max(1, Math.ceil(it.qtd / (pd * eq) - 1e-9)) : null;
+}
+function celProd(t, it, fer, ro){
+  if (t.tipo === "meta" || t.paralela || !it) return `<td>—</td><td>—</td><td>—</td>`;
+  const pd = prodDiaTarefa(t, it), dn = diasNecessarios(t, it), du = contaUteis(t.inicio, t.fim, fer);
+  const fonte = it.prodFonte ? `Composição: ${it.prodFonte}${it.prodH ? ` — ${fmtQ(it.prodH)} ${it.un}/h` : ""}` : "Sem produção na composição";
+  const curto = dn !== null && dn > du;
+  return `<td title="${esc(fonte)}">${ro ? (pd ? fmtQ(pd) : "—") : `<input class="pp" inputmode="decimal" value="${pd ? fmtNum(pd) : ""}" placeholder="—" style="width:84px">`}<br><small>${esc(it.un)}/dia</small></td>
+    <td>${ro ? (t.equipes || 1) : `<input class="pe" inputmode="numeric" value="${t.equipes || 1}" style="width:46px">`}</td>
+    <td class="${curto ? "neg" : ""}" title="${curto ? "O prazo planejado é menor que o necessário: aumente as equipes ou a duração" : ""}">${dn ?? "—"}</td>`;
+}
+// recalcula a duração de cada serviço pela produção × equipes, mantendo a sequência dentro do grupo
+function ajustarPelasProducoes(p){
+  const c = S.ext.contrato, fer = p.feriados || FERIADOS_PADRAO;
+  let mudou = 0;
+  for (const meta of p.tarefas.filter(t => t.tipo === "meta")){
+    const filhos = p.tarefas.filter(t => t.grupo === meta.id && t.tipo === "item" && !t.paralela);
+    if (!filhos.length) continue;
+    let cursor = filhos.reduce((m,t) => t.inicio < m ? t.inicio : m, filhos[0].inicio);
+    for (const t of filhos){
+      const it = c.itens.find(i => i.id === t.id), dn = diasNecessarios(t, it);
+      const dur = dn ?? Math.max(1, contaUteis(t.inicio, t.fim, fer));
+      const ini = proxUtil(cursor, fer), fim = somaUteis(ini, dur, fer);
+      if (ini !== t.inicio || fim !== t.fim) mudou++;
+      t.inicio = ini; t.fim = fim; cursor = addDays(fim, 1);
+    }
+    const contin = p.tarefas.filter(t => t.grupo === meta.id && t.paralela);
+    const fimSeq = filhos[filhos.length - 1].fim;
+    for (const t of contin) if (t.fim < fimSeq) t.fim = fimSeq;   // transportes acompanham o fim dos serviços do grupo
+  }
+  return mudou;
 }
 function syncPlano(){
   const p = S.planoDraft || (plano() && clone(plano())); if (!p) return null;
@@ -3133,13 +3172,20 @@ function syncPlano(){
     const t = p.tarefas.find(x => x.id === tr.dataset.tid); if (!t) return;
     const a = tr.querySelector(".pi")?.value, b = tr.querySelector(".pf")?.value;
     if (a) t.inicio = a; if (b) t.fim = b < t.inicio ? t.inicio : b;
+    const pp = tr.querySelector(".pp"), pe = tr.querySelector(".pe");
+    if (pp){ const it = S.ext.contrato.itens.find(i => i.id === t.id), v = num(pp.value);
+      t.prodDia = v === null || Math.abs(v - (prodDiaPadrao(it) || 0)) < 1e-6 ? null : v; if (t.prodDia === null) delete t.prodDia; }
+    if (pe){ const v = parseInt(pe.value, 10); if (v > 1) t.equipes = v; else delete t.equipes; }
   });
-  // metas acompanham os serviços
+  atualizaMetas(p);
+  S.planoDraft = p; return p;
+}
+// metas acompanham os serviços
+function atualizaMetas(p){
   for (const m of p.tarefas.filter(t => t.tipo === "meta")){
     const filhos = p.tarefas.filter(t => t.grupo === m.id); if (!filhos.length) continue;
     m.inicio = filhos.reduce((x,t) => t.inicio < x ? t.inicio : x, filhos[0].inicio); m.fim = filhos.reduce((x,t) => t.fim > x ? t.fim : x, filhos[0].fim);
   }
-  S.planoDraft = p; return p;
 }
 // grava a programação semanal de todas as semanas do plano.
 // semana vazia → recebe o plano; semana futura que só tem atividades vindas do plano e sem realizado → atualiza;
@@ -3276,6 +3322,8 @@ document.addEventListener("click", async ev => {
       toast("Prévia gerada. Confira e clique em Salvar programação."); return;
     }
     if (t.id === "plSalvar"){ const p = syncPlano(); if (p) await salvarPlano(p); return; }
+    if (t.id === "plAjusta"){ const p = syncPlano(); if (!p) return; const n = ajustarPelasProducoes(p); atualizaMetas(p); S.planoDraft = p; renderPlanejamento();
+      toast(`${n} serviço(s) com datas recalculadas pela produção. Confira e clique em Salvar programação.`); return; }
     if (t.id === "plMsp"){ exportarMSProject(); return; }
     if (t.hasAttribute("data-irinicio")){
       const pl = plano(); if (!pl) return;
@@ -3298,7 +3346,7 @@ document.addEventListener("click", async ev => {
 });
 document.addEventListener("change", async ev => {
   if (ev.target.id === "plImp" && ev.target.files[0]){ try { await importarMSProject(ev.target.files[0]); } catch(e){ console.error(e); toast("Erro ao ler o arquivo: " + e.message, true); } ev.target.value = ""; }
-  if (ev.target.closest?.("#v-plano") && (ev.target.classList.contains("pi") || ev.target.classList.contains("pf"))){ syncPlano(); renderPlanejamento(); }
+  if (ev.target.closest?.("#v-plano") && ["pi","pf","pp","pe"].some(k => ev.target.classList.contains(k))){ syncPlano(); renderPlanejamento(); }
 });
 
 /* ---------------- mapa de insumos da obra (Excel / PDF) ---------------- */
