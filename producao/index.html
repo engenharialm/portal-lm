@@ -180,6 +180,7 @@
   .mem{position:sticky;left:0;max-width:calc(100vw - 80px)}
   .mem .memt td,.mem .memt th{padding:5px 6px;white-space:nowrap}
   .mem .memt td:first-child{width:34px}
+  .mem select{padding:6px 8px;border:1px solid var(--borda);border-radius:8px;max-width:100%}
   .mem .memt input{width:auto;text-align:left;padding:5px 6px;border:1px solid var(--borda);border-radius:6px}
   .mem .memt td.mp,.mem .memt td.mt{font-weight:700}
   .fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:10px}
@@ -358,7 +359,7 @@
   .dados b{color:var(--lm-text)}
   .rqlin2{border-bottom-color:var(--lm-line)}
   tr.memrow > td{background:rgba(61,242,255,.04)!important}
-  .mem .memt input,.foto select,.foto input{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
+  .mem .memt input,.mem select,.foto select,.foto input{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
   .foto{border-color:var(--lm-line);background:rgba(255,255,255,.02)}
   table.gantt input[type=date]{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
   .regua span{color:var(--lm-muted);border-left-color:var(--lm-line)}
@@ -2187,18 +2188,20 @@ async function exportarBoletim(){
     rm++;
     const ini = rm + 1;
     if (ls.length){
-      ["LOCAL / ESTACAS","UNIDADE","COMPRIMENTO (m)","LARGURA (m)","ALTURA / ESP. (m)","QTD",i.un].forEach((t,k) => cel(wm, `${"BCDEFGH"[k]}${rm}`, t, { ...N, bold:true, fill:AC6 }));
+      const tk = tipoMem(i, m), tpl = TPL_MEM[tk];
+      cel(wm, `B${rm}:H${rm}`, `Cálculo: ${tpl.t}`, { ...N, size:9, h:"left" }); rm++;
+      const ini2 = rm + 1;
+      ["LOCAL / ESTACAS","UNIDADE", ...[0,1,2,3].map(k => tpl.f[k] ? tpl.f[k][1].replace(/^[^(]+/, s => s.toUpperCase()) : ""), i.un].forEach((t,k) => cel(wm, `${"BCDEFGH"[k]}${rm}`, t, { ...N, bold:true, fill:AC6 }));
       rm++;
       for (const l of ls){
-        const nv = s => { const v = num(String(s ?? "").trim()); return v === null ? null : v; };
-        let comp = nv(l.c); if (comp === null){ const a = estacaM(l.ei), b = estacaM(l.ef); if (a !== null && b !== null) comp = Math.abs(b - a); }
-        const loc = [l.local, (l.ei || l.ef) ? `Est. ${l.ei || "?"} a ${l.ef || "?"}` : ""].filter(Boolean).join(" — ");
+        const vs = valoresMem(l, tk);
+        const loc = [l.local, tpl.est && (l.ei || l.ef) ? `Est. ${l.ei || "?"} a ${l.ef || "?"}` : ""].filter(Boolean).join(" — ");
         cel(wm, `B${rm}`, loc, { ...N, h:"left" }); cel(wm, `C${rm}`, i.un, { ...N });
-        [comp, nv(l.l), nv(l.h), nv(l.n)].forEach((v,k) => cel(wm, `${"DEFG"[k]}${rm}`, v, { ...N, fmt:QT }));
-        cel(wm, `H${rm}`, { formula:`IF(COUNT(D${rm}:G${rm})=0,0,PRODUCT(D${rm}:G${rm}))` }, { ...N, fmt:QT });
+        [0,1,2,3].forEach(k => cel(wm, `${"DEFG"[k]}${rm}`, tpl.f[k] ? vs[k] : null, { ...N, fmt:QT }));
+        cel(wm, `H${rm}`, { formula:`IF(COUNT(D${rm}:G${rm})=0,0,PRODUCT(D${rm}:G${rm}))${tpl.k ? "*" + tpl.k : ""}` }, { ...N, fmt:QT });
         rm++;
       }
-      cel(wm, `B${rm}:G${rm}`, `TOTAL MEDIDO — ${i.item}`, { ...N, bold:true, h:"right" }); cel(wm, `H${rm}`, { formula:`SUM(H${ini}:H${rm - 1})` }, { ...N, bold:true, fill:AC8, fmt:QT });
+      cel(wm, `B${rm}:G${rm}`, `TOTAL MEDIDO — ${i.item}`, { ...N, bold:true, h:"right" }); cel(wm, `H${rm}`, { formula:`SUM(H${ini2}:H${rm - 1})` }, { ...N, bold:true, fill:AC8, fmt:QT });
     } else {
       cel(wm, `B${rm}`, "", { ...N }); cel(wm, `C${rm}`, "UNIDADE", { ...N, bold:true, fill:AC6 }); cel(wm, `D${rm}`, "QUANTIDADE", { ...N, bold:true, fill:AC6 });
       for (const L of "EFG") cel(wm, `${L}${rm}`, "", { ...N }); cel(wm, `H${rm}`, i.un, { ...N, bold:true, fill:AC6 }); rm++;
@@ -3489,23 +3492,65 @@ function estacaM(s){
   if (m) return Number(m[1]) * 20 + (num(m[2]) || 0);
   const v = num(s); return v === null ? null : v * 20;
 }
-function parcialMem(l){
-  const nv = s => { const v = num(String(s ?? "").trim()); return v === null ? null : v; };
-  let c = nv(l.c); const L = nv(l.l), H = nv(l.h), n = nv(l.n);
-  if (c === null){ const a = estacaM(l.ei), b = estacaM(l.ef); if (a !== null && b !== null) c = Math.abs(b - a); }
-  if (c === null && L === null && H === null && n === null) return 0;
-  return r2(((n ?? 1) * (c ?? 1) * (L ?? 1) * (H ?? 1)) * 1000) / 1000;
+// tipos de memória: os campos mudam conforme o que se mede (volume, área, massa com densidade, momento de transporte com DMT...)
+const TPL_MEM = {
+  volume:    { t:"Volume: comprimento × largura × espessura", f:[["c","Compr. (m)"],["l","Largura (m)"],["h","Esp./alt. (m)"],["n","Qtd"]], est:true },
+  volArea:   { t:"Volume: área × espessura", f:[["a","Área (m²)"],["h","Esp. (m)"],["n","Qtd"]] },
+  area:      { t:"Área: comprimento × largura", f:[["c","Compr. (m)"],["l","Largura (m)"],["n","Qtd"]], est:true },
+  linear:    { t:"Extensão: comprimento", f:[["c","Compr. (m)"],["n","Qtd"]], est:true },
+  massa:     { t:"Massa: volume × densidade", f:[["v","Volume (m³)"],["d","Densidade (t/m³)"]] },
+  massaArea: { t:"Massa: área × espessura × densidade", f:[["a","Área (m²)"],["h","Esp. (m)"],["d","Densidade (t/m³)"]] },
+  taxa:      { t:"Massa: área × taxa (kg/m²) ÷ 1000", f:[["a","Área (m²)"],["tx","Taxa (kg/m²)"]], k:.001 },
+  dmtMassa:  { t:"Momento de transporte: volume × densidade × DMT", f:[["v","Volume (m³)"],["d","Densidade (t/m³)"],["dmt","DMT (km)"]] },
+  dmtPeso:   { t:"Momento de transporte: massa × DMT", f:[["p","Massa (t)"],["dmt","DMT (km)"]] },
+  dmtVol:    { t:"Momento de transporte: volume × DMT", f:[["v","Volume (m³)"],["dmt","DMT (km)"]] },
+  qtd:       { t:"Quantidade", f:[["n","Quantidade"]] }
+};
+function tipoPadrao(un){
+  const u = String(un || "").toLowerCase().replace(/\s/g, "");
+  if (/^t[x.]?km$/.test(u)) return "dmtMassa";
+  if (/^m(3|³)[x.]?km$/.test(u)) return "dmtVol";
+  if (/^m(3|³)$/.test(u)) return "volume";
+  if (/^m(2|²)$/.test(u)) return "area";
+  if (u === "m") return "linear";
+  if (/^(t|ton|tonelada)$/.test(u)) return "massa";
+  return "qtd";
 }
-const somaMem = linhas => r2((linhas || []).reduce((s,l) => s + parcialMem(l), 0) * 1000) / 1000;
+const tipoMem = (i, m) => (m?.memoriaTipo?.[i.id]) || tipoPadrao(i.un);
+const tipoMemId = id => { const i = S.ext.contrato?.itens?.find(x => x.id === id); return i ? tipoMem(i, S.medDraft) : "volume"; };
+// valor de um campo: número, ou "=1.6.4" para usar a quantidade medida do item 1.6.4 nesta medição
+function valMem(s){
+  s = String(s ?? "").trim(); if (!s) return null;
+  const ref = s.match(/^=\s*(\d+(?:\.\d+)+)$/);
+  if (ref){ const it = S.ext.contrato?.itens?.find(i => i.item === ref[1]); const m = S.medDraft || medAtual(); return it ? Number(m?.qtd?.[it.id] || 0) : null; }
+  const v = num(s); return v === null ? null : v;
+}
+// valores dos campos do tipo (com o comprimento vindo das estacas quando não informado)
+function valoresMem(l, tk){
+  const tpl = TPL_MEM[tk] || TPL_MEM.volume;
+  return tpl.f.map(([k]) => {
+    let v = valMem(l[k]);
+    if (v === null && k === "c" && tpl.est){ const a = estacaM(l.ei), b = estacaM(l.ef); if (a !== null && b !== null) v = Math.abs(b - a); }
+    return v;
+  });
+}
+function parcialMem(l, tk){
+  const tpl = TPL_MEM[tk] || TPL_MEM.volume, vs = valoresMem(l, tk);
+  if (vs.every(v => v === null)) return 0;
+  return r2(vs.reduce((s, v) => s * (v ?? 1), 1) * (tpl.k || 1) * 1000) / 1000;
+}
+const somaMem = (linhas, tk) => r2((linhas || []).reduce((s,l) => s + parcialMem(l, tk), 0) * 1000) / 1000;
 function memEditor(i, m, travada){
-  const linhas = m.memoria?.[i.id] || [];
+  const linhas = m.memoria?.[i.id] || [], tk = tipoMem(i, m), tpl = TPL_MEM[tk];
   const cel = (k, l, f, ph, w) => travada ? `<td>${esc(l[f] ?? "")}</td>` : `<td><input class="ml" data-k="${k}" data-f="${f}" value="${esc(l[f] ?? "")}" placeholder="${ph}" style="width:${w}px"></td>`;
-  return `<div class="mem"><div class="row" style="justify-content:space-between"><b>Memória de cálculo — ${esc(i.item)} ${esc(i.descricao.slice(0,70))} (${esc(i.un)})</b>
-      <small class="nota" style="margin:0">Parcial = Qtd × Comprimento × Largura × Altura (vazio conta 1). Sem comprimento, usa a distância entre as estacas (20 m por estaca; ex.: 12+5,50).</small></div>
-    <div class="memwrap"><table class="tb memt" data-mi="${i.id}"><thead><tr><th></th><th class="l">Local / descrição</th><th>Est. inicial</th><th>Est. final</th><th>Compr. (m)</th><th>Largura (m)</th><th>Alt./esp. (m)</th><th>Qtd</th><th>Parcial (${esc(i.un)})</th></tr></thead><tbody>
-    ${linhas.map((l,k) => `<tr data-k="${k}"><td>${travada ? "" : `<button class="x" data-memrm="${k}" title="Excluir esta linha">✕</button>`}</td>${cel(k,l,"local","ex.: Rua A, lado direito",190)}${cel(k,l,"ei","0+0,00",72)}${cel(k,l,"ef","12+5,00",72)}${cel(k,l,"c","",66)}${cel(k,l,"l","",60)}${cel(k,l,"h","",60)}${cel(k,l,"n","",46)}
-      <td class="mp">${fmtQ(parcialMem(l))}</td></tr>`).join("")}
-    </tbody><tfoot><tr><td></td><td colspan="7" class="l">TOTAL MEDIDO NO ITEM</td><td class="mt">${fmtQ(somaMem(linhas))}</td></tr></tfoot></table></div>
+  const ncols = 2 + (tpl.est ? 2 : 0) + tpl.f.length + 1;
+  return `<div class="mem"><div class="row" style="justify-content:space-between;align-items:center"><b>Memória de cálculo — ${esc(i.item)} ${esc(i.descricao.slice(0,70))} (${esc(i.un)})</b>
+      ${travada ? `<small>${esc(tpl.t)}</small>` : `<label class="row" style="gap:6px">Tipo de cálculo <select data-memtipo="${i.id}">${Object.entries(TPL_MEM).map(([k, x]) => `<option value="${k}" ${k === tk ? "selected" : ""}>${esc(x.t)}</option>`).join("")}</select></label>`}</div>
+    <small class="nota" style="margin:4px 0 0;display:block">Parcial = ${tpl.f.map(x => x[1].replace(/ \(.*\)/, "")).join(" × ")}${tpl.k ? " ÷ 1000" : ""} (campo vazio conta 1).${tpl.est ? " Sem comprimento, usa a distância entre as estacas (20 m por estaca; ex.: 12+5,50)." : ""} Digite <b>=1.6.4</b> num campo para usar a quantidade medida do item 1.6.4 nesta medição.</small>
+    <div class="memwrap"><table class="tb memt" data-mi="${i.id}"><thead><tr><th></th><th class="l">Local / descrição</th>${tpl.est ? "<th>Est. inicial</th><th>Est. final</th>" : ""}${tpl.f.map(x => `<th>${esc(x[1])}</th>`).join("")}<th>Parcial (${esc(i.un)})</th></tr></thead><tbody>
+    ${linhas.map((l,k) => `<tr data-k="${k}"><td>${travada ? "" : `<button class="x" data-memrm="${k}" title="Excluir esta linha">✕</button>`}</td>${cel(k,l,"local","ex.: Rua A, lado direito",190)}${tpl.est ? cel(k,l,"ei","0+0,00",72) + cel(k,l,"ef","12+5,00",72) : ""}${tpl.f.map(([f]) => cel(k,l,f,f === "d" ? "2,40" : "",f === "dmt" || f === "d" ? 64 : 70)).join("")}
+      <td class="mp">${fmtQ(parcialMem(l, tk))}</td></tr>`).join("")}
+    </tbody><tfoot><tr><td></td><td colspan="${ncols - 2}" class="l">TOTAL MEDIDO NO ITEM</td><td class="mt">${fmtQ(somaMem(linhas, tk))}</td></tr></tfoot></table></div>
     ${travada ? "" : `<div class="row" style="margin-top:6px"><button class="btn peq" data-memadd="${i.id}">+ Linha</button>${linhas.length ? `<button class="btn peq" data-memlimpa="${i.id}">Tirar memória deste item</button>` : ""}</div>`}</div>`;
 }
 function syncMemDom(){
@@ -3515,7 +3560,7 @@ function syncMemDom(){
     const ls = m.memoria[id] || [];
     tb.querySelectorAll("tbody tr[data-k]").forEach(tr => { const l = ls[+tr.dataset.k]; if (!l) return; tr.querySelectorAll(".ml").forEach(inp => l[inp.dataset.f] = inp.value.trim()); });
     m.memoria[id] = ls;
-    if (ls.length) m.qtd[id] = somaMem(ls); else delete m.memoria[id];
+    if (ls.length) m.qtd[id] = somaMem(ls, tipoMemId(id)); else delete m.memoria[id];
   });
 }
 // atualiza parciais, total do item e a quantidade da medição enquanto digita
@@ -3523,9 +3568,10 @@ document.addEventListener("input", ev => {
   if (!ev.target.classList?.contains("ml")) return;
   syncMemDom();
   const tb = ev.target.closest("table.memt"), id = tb.dataset.mi, ls = S.medDraft.memoria[id] || [];
-  tb.querySelectorAll("tbody tr[data-k]").forEach(tr => tr.querySelector(".mp").textContent = fmtQ(parcialMem(ls[+tr.dataset.k])));
-  tb.querySelector(".mt").textContent = fmtQ(somaMem(ls));
-  const inp = $(`#v-medicoes tr[data-it="${id}"] .mq`); if (inp) inp.value = fmtQ(somaMem(ls));
+  const tk = tipoMemId(id);
+  tb.querySelectorAll("tbody tr[data-k]").forEach(tr => tr.querySelector(".mp").textContent = fmtQ(parcialMem(ls[+tr.dataset.k], tk)));
+  tb.querySelector(".mt").textContent = fmtQ(somaMem(ls, tk));
+  const inp = $(`#v-medicoes tr[data-it="${id}"] .mq`); if (inp) inp.value = fmtQ(somaMem(ls, tk));
   atualizaTotaisMed();
 });
 
@@ -3548,7 +3594,7 @@ async function exportarMemoria(){
     if (ls?.length) for (const l of ls){
       const nv = s => { const v = num(String(s ?? "")); return v === null ? null : v; };
       let comp = nv(l.c); if (comp === null){ const a = estacaM(l.ei), b = estacaM(l.ef); if (a !== null && b !== null) comp = Math.abs(b - a); }
-      [l.local || "", l.ei || "", l.ef || "", comp, nv(l.l), nv(l.h), nv(l.n), parcialMem(l)].forEach((v,k) => { const cell = ws.getCell(r,k+1); cell.value = v; sty(cell, { size:9, h: k === 0 ? "left" : "center", fmt: k >= 3 ? Q : undefined }); });
+      [l.local || "", l.ei || "", l.ef || "", comp, nv(l.l), nv(l.h), nv(l.n), parcialMem(l, tipoMem(i, m))].forEach((v,k) => { const cell = ws.getCell(r,k+1); cell.value = v; sty(cell, { size:9, h: k === 0 ? "left" : "center", fmt: k >= 3 ? Q : undefined }); });
       r++;
     } else { ws.mergeCells(r,1,r,7); ws.getCell(r,1).value = "Quantidade lançada sem memória detalhada"; sty(ws.getCell(r,1), { size:9, italic:true, h:"left" }); ws.getCell(r,8).value = q; sty(ws.getCell(r,8), { size:9, fmt:Q }); r++; }
     ws.mergeCells(r,1,r,7); ws.getCell(r,1).value = "TOTAL DO ITEM NESTA MEDIÇÃO"; sty(ws.getCell(r,1), { bold:true, size:9, h:"right" });
@@ -3709,7 +3755,7 @@ document.addEventListener("click", async ev => {
   try {
     if (t.dataset.mem){ syncMedDom(); syncMemDom(); S.memAberto = S.memAberto === t.dataset.mem ? null : t.dataset.mem; renderMedEditor(); return; }
     if (t.dataset.memadd){ syncMedDom(); syncMemDom(); const m = S.medDraft; m.memoria ||= {}; (m.memoria[t.dataset.memadd] ||= []).push({ local:"", ei:"", ef:"", c:"", l:"", h:"", n:"" }); renderMedEditor(); return; }
-    if (t.dataset.memrm !== undefined){ syncMedDom(); syncMemDom(); const id = t.closest("table.memt").dataset.mi; S.medDraft.memoria[id].splice(+t.dataset.memrm, 1); if (!S.medDraft.memoria[id].length){ delete S.medDraft.memoria[id]; delete S.medDraft.qtd[id]; } else S.medDraft.qtd[id] = somaMem(S.medDraft.memoria[id]); renderMedEditor(); return; }
+    if (t.dataset.memrm !== undefined){ syncMedDom(); syncMemDom(); const id = t.closest("table.memt").dataset.mi; S.medDraft.memoria[id].splice(+t.dataset.memrm, 1); if (!S.medDraft.memoria[id].length){ delete S.medDraft.memoria[id]; delete S.medDraft.qtd[id]; } else S.medDraft.qtd[id] = somaMem(S.medDraft.memoria[id], tipoMemId(id)); renderMedEditor(); return; }
     if (t.dataset.memlimpa){ if (!confirm("Tirar a memória deste item? A quantidade volta a ser digitada direto.")) return; syncMedDom(); syncMemDom(); delete S.medDraft.memoria[t.dataset.memlimpa]; renderMedEditor(); return; }
     if (t.id === "medMemXls"){ await exportarMemoria(); return; }
     if (t.id === "fotoXls"){ await exportarFotosExcel(); return; }
@@ -3719,6 +3765,11 @@ document.addEventListener("click", async ev => {
 });
 document.addEventListener("change", async ev => {
   try {
+    if (ev.target.dataset?.memtipo){
+      syncMedDom(); const m = S.medDraft; m.memoriaTipo ||= {}; m.memoriaTipo[ev.target.dataset.memtipo] = ev.target.value;
+      const ls = m.memoria?.[ev.target.dataset.memtipo]; if (ls?.length) m.qtd[ev.target.dataset.memtipo] = somaMem(ls, ev.target.value);
+      renderMedEditor(); return;
+    }
     if (ev.target.id === "fotoAdd" && ev.target.files.length){
       const m = medAtual(), arqs = [...ev.target.files]; ev.target.value = "";
       toast(`Enviando ${arqs.length} foto(s)...`);
