@@ -3111,8 +3111,21 @@ function renderPlanejamento(){
     regua += `<span style="left:${pos(a)}%;width:${pos(addDays(b,1)) - pos(a)}%">${MESES[parseIso(d).getMonth()]}/${String(parseIso(d).getFullYear()).slice(2)}</span>`; d = addMeses(d, 1); }
   const hojeX = hoje() >= ini && hoje() <= fim ? `<i class="hojeln" style="left:${pos(hoje())}%"></i>` : "";
   const ro = !ehGeral();
-  h += `<div class="card"><div class="kpi" style="margin-bottom:10px"><div><b>${fmtBR(proxUtil(ini, fer))}</b><span>Início (1º dia útil)</span></div><div><b>${fmtBR(fim)}</b><span>Término</span></div>
-      <div><b>${contaUteis(ini, fim, fer)}</b><span>Dias úteis (sem sábados, domingos e feriados)</span></div><div><b>${p.tarefas.filter(t => t.tipo !== "meta").length}</b><span>Tarefas</span></div></div>
+  // simulação: como ficaria a obra se cada serviço durasse o que a produção × equipes exige
+  const sim = clone(p); ajustarPelasProducoes(sim); atualizaMetas(sim);
+  const simT = Object.fromEntries(sim.tarefas.map(t => [t.id, t]));
+  const fimProd = sim.tarefas.reduce((m,t) => t.fim > m ? t.fim : m, sim.inicio);
+  const iniProd = sim.tarefas.reduce((m,t) => t.inicio < m ? t.inicio : m, sim.inicio);
+  const fimContr = c.prazoMeses ? addDays(addMeses(p.inicio, c.prazoMeses), -1) : null;
+  const duPlan = contaUteis(ini, fim, fer), duProd = contaUteis(iniProd, fimProd, fer);
+  const estoura = fimContr && fimProd > fimContr;
+  h += `<div class="card"><div class="kpi" style="margin-bottom:10px"><div><b>${fmtBR(proxUtil(ini, fer))}</b><span>Início (1º dia útil)</span></div><div><b>${fmtBR(fim)}</b><span>Término planejado</span></div>
+      <div><b>${duPlan}</b><span>Dias úteis planejados (sem sábados, domingos e feriados)</span></div>
+      <div><b class="${estoura ? "neg" : ""}">${fmtBR(fimProd)}</b><span>Término pelas produções (equipes atuais)</span></div>
+      <div><b class="${duProd > duPlan ? "neg" : ""}">${duProd}</b><span>Dias úteis pelas produções${duProd !== duPlan ? ` (${duProd > duPlan ? "+" : ""}${duProd - duPlan})` : ""}</span></div>
+      ${fimContr ? `<div><b>${fmtBR(fimContr)}</b><span>Término contratual (${c.prazoMeses} meses)</span></div>` : ""}
+      <div><b>${p.tarefas.filter(t => t.tipo !== "meta").length}</b><span>Tarefas</span></div></div>
+    ${estoura ? `<p class="nota neg" style="margin:0 0 10px">Pelas produções a obra termina depois do prazo contratual: aumente as equipes dos serviços em vermelho.</p>` : ""}
     <div class="tbwrap"><table class="tb gantt"><thead><tr><th>EAP</th><th class="l">Tarefa</th><th>Início</th><th>Fim</th><th>Dias úteis</th><th title="Produção de 1 equipe por dia (8 h), tirada da composição">Produção/dia<br><small>1 equipe</small></th><th>Equipes</th><th title="Quantidade ÷ (produção × equipes)">Dias<br>necessários</th><th>% medido</th><th class="gt"><div class="regua">${regua}</div></th></tr></thead><tbody>`;
   for (const t of p.tarefas){
     const it = c.itens.find(i => i.id === t.id);
@@ -3122,10 +3135,12 @@ function renderPlanejamento(){
       <td class="l" title="${esc((t.item ? t.item + " - " : "") + t.nome)}">${meta ? "" : `<small>${esc(t.item || "")}</small> `}${esc(t.nome)}${t.paralela ? ` <small>(contínua)</small>` : ""}</td>
       <td>${meta || ro ? fmtBR(t.inicio) : `<input type="date" class="pi" value="${t.inicio}">`}</td>
       <td>${meta || ro ? fmtBR(t.fim) : `<input type="date" class="pf" value="${t.fim}">`}</td>
-      <td>${contaUteis(t.inicio, t.fim, fer)}</td>${celProd(t, it, fer, ro)}<td>${pm !== null && pm > 0 ? fmtP(pm) : (meta ? "" : "—")}</td>
+      <td>${contaUteis(t.inicio, t.fim, fer)}</td>${meta ? celMeta(t, simT[t.id], fer) : celProd(t, it, fer, ro)}<td>${pm !== null && pm > 0 ? fmtP(pm) : (meta ? "" : "—")}</td>
       <td class="gt"><div class="trilho">${hojeX}<b class="${meta ? "bm" : t.paralela ? "bp" : ""}" style="left:${pos(t.inicio)}%;width:${Math.max(.6, pos(addDays(t.fim,1)) - pos(t.inicio))}%">${pm ? `<u style="width:${pm*100}%"></u>` : ""}</b></div></td></tr>`;
   }
-  h += `</tbody></table></div><p class="nota">Feriados considerados: ${fer.filter(x => x >= ini && x <= fim).map(fmtBR).join(", ") || "nenhum no período"}. A linha vertical marca hoje.</p></div>`;
+  h += `<tr class="g tot"><td></td><td class="l">TOTAL DA OBRA</td><td>${fmtBR(proxUtil(ini, fer))}</td><td>${fmtBR(fim)}</td><td>${duPlan}</td><td>—</td><td>—</td>
+      <td class="${duProd > duPlan ? "neg" : ""}" title="Pelas produções: ${fmtBR(proxUtil(iniProd, fer))} a ${fmtBR(fimProd)}"><b>${duProd}</b></td><td></td><td class="gt"></td></tr>`;
+  h += `</tbody></table></div><p class="nota">Nos grupos e no total, “Dias necessários” é o prazo que o grupo / a obra teria se cada serviço durasse o que a produção × equipes exige, mantendo a sequência. Feriados considerados: ${fer.filter(x => x >= ini && x <= fim).map(fmtBR).join(", ") || "nenhum no período"}. A linha vertical marca hoje.</p></div>`;
   el.innerHTML = h;
   setSavebar(ehGeral() ? `<button class="btn pri" id="plSalvar">Salvar programação</button>` : "");
 }
@@ -3135,6 +3150,12 @@ const prodDiaTarefa = (t, it) => t.prodDia != null ? t.prodDia : prodDiaPadrao(i
 function diasNecessarios(t, it){
   const pd = prodDiaTarefa(t, it), eq = Number(t.equipes) || 1;
   return it && pd ? Math.max(1, Math.ceil(it.qtd / (pd * eq) - 1e-9)) : null;
+}
+// grupo: prazo pelas produções (da simulação) × planejado
+function celMeta(t, s, fer){
+  if (!s) return `<td>—</td><td>—</td><td>—</td>`;
+  const dp = contaUteis(s.inicio, s.fim, fer), du = contaUteis(t.inicio, t.fim, fer);
+  return `<td>—</td><td>—</td><td class="${dp > du ? "neg" : ""}" title="Pelas produções: ${fmtBR(s.inicio)} a ${fmtBR(s.fim)}"><b>${dp}</b></td>`;
 }
 function celProd(t, it, fer, ro){
   if (t.tipo === "meta" || t.paralela || !it) return `<td>—</td><td>—</td><td>—</td>`;
