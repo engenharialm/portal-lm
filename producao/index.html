@@ -174,6 +174,14 @@
   .rqlin input,.rqlin select{padding:8px;border:1px solid var(--borda);border-radius:8px;min-width:0}
   @media (max-width:700px){ .rqlin,.rqlin.cot{grid-template-columns:1fr 1fr} .rqlin [data-f=descricao],.rqlin select,#ctForn,#ctObs{grid-column:1/-1} }
   .ic{margin-top:8px}
+  tr.memrow > td{background:rgba(0,112,192,.04);padding:10px}
+  .mem .memt{margin-top:8px}
+  .mem .memt input{width:auto;text-align:left;padding:5px 6px;border:1px solid var(--borda);border-radius:6px}
+  .mem .memt td.mp,.mem .memt td.mt{font-weight:700}
+  .fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:10px}
+  .foto{display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--borda);border-radius:10px}
+  .foto img{width:100%;height:170px;object-fit:cover;border-radius:6px;background:#000}
+  .foto select,.foto input{width:100%;padding:6px 8px;border:1px solid var(--borda);border-radius:6px;min-width:0}
   table.gantt th.gt,table.gantt td.gt{min-width:460px;width:46%;padding:4px 8px}
   table.gantt td.l{min-width:280px;max-width:380px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   table.gantt td,table.gantt th{padding-top:4px;padding-bottom:4px}
@@ -345,6 +353,9 @@
   .btn.on{background:linear-gradient(90deg,var(--lm-acc2),var(--lm-violet));border:none}
   .dados b{color:var(--lm-text)}
   .rqlin2{border-bottom-color:var(--lm-line)}
+  tr.memrow > td{background:rgba(61,242,255,.04)!important}
+  .mem .memt input,.foto select,.foto input{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
+  .foto{border-color:var(--lm-line);background:rgba(255,255,255,.02)}
   table.gantt input[type=date]{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
   .regua span{color:var(--lm-muted);border-left-color:var(--lm-line)}
   .trilho b{background:linear-gradient(90deg,var(--lm-acc2),var(--lm-cyan));box-shadow:0 0 8px rgba(61,242,255,.25)}
@@ -1792,7 +1803,7 @@ function renderMedicoes(){
   if (alertas.length) h += `<div class="info">${alertas.map(esc).join("<br>")}</div>`;
   h += `<div class="card previa" id="previa"><h3>Prévia de faturamento</h3><div class="vazio">Calculando a produção lançada no Diário...</div></div>`;
   h += `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Medições — ${esc(obraAtual().nome)}</h3>
-    ${ehGeral() ? `<button class="btn pri peq" id="medNova">+ Nova medição</button>` : ""}</div>`;
+    ${ehGeral() ? `<button class="btn pri peq" id="medNova" title="Medição lançada item a item, sem puxar do Diário (com memória de cálculo)">+ Medição manual (por item)</button>` : ""}</div>`;
   if (!meds.length) h += `<div class="vazio">Nenhuma medição ainda.</div>`;
   else {
     h += `<div class="tbwrap"><table class="tb"><thead><tr><th>Nº</th><th>Período</th><th>Valor</th><th>Acumulado</th><th>% contrato</th><th>Previsto (cronograma)</th><th>Situação</th><th>NF / pagamento</th><th></th></tr></thead><tbody>`;
@@ -1850,14 +1861,16 @@ function renderMedEditor(){
     ${travada && ehGeral() && m.status !== "paga" ? `<p class="nota">Medição aprovada: as quantidades ficam travadas. <a href="#" id="medReabrir">Reabrir para corrigir</a></p>` : ""}
   </div>`;
   // itens
-  h += `<div class="card"><div class="tbwrap"><table class="tb med"><thead><tr><th>Item</th><th class="l">Descrição</th><th>Un</th><th>Contratado</th><th>Acum. anterior</th><th>Nesta medição</th><th>Acum. atual</th><th>Saldo</th><th>Preço unit.</th><th>Valor</th></tr></thead><tbody>`;
+  h += `<div class="card"><div class="tbwrap"><table class="tb med"><thead><tr><th>Item</th><th class="l">Descrição</th><th>Un</th><th>Contratado</th><th>Acum. anterior</th><th>Nesta medição</th><th>Acum. atual</th><th>Saldo</th><th>Preço unit.</th><th>Valor</th><th title="Memória de cálculo">Memória</th></tr></thead><tbody>`;
   for (const g of gruposContrato(c)){
-    h += `<tr class="g"><td colspan="10" class="l">${esc(g.nome)}</td></tr>`;
+    h += `<tr class="g"><td colspan="11" class="l">${esc(g.nome)}</td></tr>`;
     for (const i of g.itens){
       const ant = acumAnterior(i.id, m.numero), q = Number(m.qtd[i.id] || 0), at = ant + q, saldo = i.qtd - at;
       h += `<tr data-it="${i.id}" class="${saldo < -0.0005 ? "estouro" : ""}"><td>${esc(i.item)}</td><td class="l">${esc(i.descricao)}</td><td>${esc(i.un)}</td><td>${fmtQ(i.qtd)}</td><td>${ant ? fmtQ(ant) : "—"}</td>
-        <td>${travada ? (q ? fmtQ(q) : "—") : `<input class="mq" inputmode="decimal" value="${q ? fmtQ(q) : ""}">`}</td>
-        <td class="at">${at ? fmtQ(at) : "—"}</td><td class="sd">${fmtQ(r2(saldo*1000)/1000)}</td><td>${fmtR(i.pu)}</td><td class="vl">${q ? fmtR(r2(q*i.pu)) : "—"}</td></tr>`;
+        <td>${travada ? (q ? fmtQ(q) : "—") : `<input class="mq" inputmode="decimal" value="${q ? fmtQ(q) : ""}" ${m.memoria?.[i.id]?.length ? 'readonly title="Calculado pela memória de cálculo"' : ""}>`}</td>
+        <td class="at">${at ? fmtQ(at) : "—"}</td><td class="sd">${fmtQ(r2(saldo*1000)/1000)}</td><td>${fmtR(i.pu)}</td><td class="vl">${q ? fmtR(r2(q*i.pu)) : "—"}</td>
+        <td>${!travada || m.memoria?.[i.id]?.length ? `<button class="btn peq ${S.memAberto === i.id ? "on" : ""}" data-mem="${i.id}" title="Memória de cálculo">📐${m.memoria?.[i.id]?.length ? " " + m.memoria[i.id].length : ""}</button>` : ""}</td></tr>`;
+      if (S.memAberto === i.id) h += `<tr class="memrow"><td colspan="11">${memEditor(i, m, travada)}</td></tr>`;
     }
   }
   const v = valorMed(m, c), antV = r2(S.ext.meds.filter(x => x.numero < m.numero).reduce((s,x) => s + valorMed(x,c), 0));
@@ -1883,16 +1896,19 @@ function renderMedEditor(){
     } else if (m.nf || m.obs) h += `<p>${m.nf ? "NF " + esc(m.nf) + "<br>" : ""}${esc(m.obs||"")}</p>`;
     if ((m.historico||[]).length) h += `<details style="margin-top:10px"><summary>Histórico</summary>${m.historico.map(x => `<div class="hist">${fmtBR(x.data)} — ${esc(x.texto)}${x.por ? ` <small>(${esc(x.por)})</small>` : ""}</div>`).join("")}</details>`;
     h += `</div>`;
+    h += cardFotos(m);
   }
   el.innerHTML = h;
+  if (m.id) desenhaFotos(m).catch(e => { console.error(e); const b = $("#fotosGrade"); if (b) b.innerHTML = `<div class="vazio">Erro ao carregar fotos: ${esc(e.message)}</div>`; });
   const bts = [];
   if (!travada) bts.push(`<button class="btn pri" id="medSalvar">${m.id ? "Salvar medição" : "Criar medição"}</button>`);
-  if (m.id) bts.push(`<button class="btn" id="medExcel">Boletim em Excel</button>`);
+  if (m.id) bts.push(`<button class="btn" id="medExcel" title="Boletim de medição e memória de cálculo no modelo LM">Boletim + memória (Excel)</button>`);
   if (m.id && ehGeral() && m.status === "rascunho") bts.push(`<button class="btn" id="medExcluir" style="color:var(--erro)">Excluir</button>`);
   setSavebar(bts.join(""));
 }
 function syncMedDom(){
   const m = S.medDraft; if (!m) return true;
+  syncMemDom();
   if ($("#medIni")){ m.inicio = $("#medIni").value || m.inicio; m.fim = $("#medFim").value || m.fim; }
   let ok = true;
   $$("#v-medicoes tr[data-it] .mq").forEach(inp => {
@@ -2010,67 +2026,188 @@ async function sugerirPeloDiario(){
   renderMedEditor(); toast(`${ids.length} item(ns) preenchidos com o realizado do Diário (${semanas} semana${semanas>1?"s":""}). Confira antes de salvar.`);
 }
 
+// valor por extenso (reais), regra do português: "três milhões, trezentos e oitenta e nove mil, oitocentos e noventa e oito reais e oitenta e três centavos"
+function extenso(v){
+  const u = ["","um","dois","três","quatro","cinco","seis","sete","oito","nove","dez","onze","doze","treze","quatorze","quinze","dezesseis","dezessete","dezoito","dezenove"];
+  const d = ["","","vinte","trinta","quarenta","cinquenta","sessenta","setenta","oitenta","noventa"];
+  const c = ["","cento","duzentos","trezentos","quatrocentos","quinhentos","seiscentos","setecentos","oitocentos","novecentos"];
+  const ate999 = n => { if (n === 100) return "cem"; const p = [];
+    if (n >= 100){ p.push(c[Math.floor(n / 100)]); n %= 100; }
+    if (n >= 20){ p.push(d[Math.floor(n / 10)]); if (n % 10) p.push(u[n % 10]); } else if (n) p.push(u[n]);
+    return p.join(" e "); };
+  const nomes = [["",""],["mil","mil"],["milhão","milhões"],["bilhão","bilhões"]];
+  const inteiro = n => {
+    if (!n) return { s:"zero", grande:false };
+    const g = []; while (n > 0){ g.push(n % 1000); n = Math.floor(n / 1000); }
+    const partes = [];
+    for (let i = g.length - 1; i >= 0; i--){ const k = g[i]; if (!k) continue;
+      partes.push({ i, k, s: i === 1 && k === 1 ? "mil" : ate999(k) + (i ? " " + (k === 1 ? nomes[i][0] : nomes[i][1]) : "") }); }
+    let s = partes[0].s;
+    for (let j = 1; j < partes.length; j++){ const p = partes[j], ultimo = j === partes.length - 1;
+      s += (ultimo && (p.k < 100 || p.k % 100 === 0) ? " e " : ", ") + p.s; }
+    return { s, grande: partes[partes.length - 1].i >= 2 };
+  };
+  v = Math.round(Number(v || 0) * 100) / 100;
+  const r = Math.floor(v), cts = Math.round((v - r) * 100);
+  let s = "";
+  if (r){ const x = inteiro(r); s = `${x.s}${x.grande ? " de" : ""} ${r === 1 ? "real" : "reais"}`; }
+  if (cts) s += (s ? " e " : "") + `${inteiro(cts).s} ${cts === 1 ? "centavo" : "centavos"}`;
+  return s || "zero reais";
+}
+
+// BOLETIM DE MEDIÇÃO + MEMÓRIA DE CÁLCULO no modelo LM (BM 02 Felixlândia)
 async function exportarBoletim(){
   const c = S.ext.contrato, m = medAtual(), o = obraAtual();
-  const wb = new ExcelJS.Workbook(); wb.creator = "Produção LM"; wb.created = new Date();
-  const ws = wb.addWorksheet(`BM ${String(m.numero).padStart(2,"0")}`, { pageSetup:{ paperSize:9, orientation:"landscape", fitToPage:true, fitToWidth:1, fitToHeight:0 }, views:[{ state:"frozen", ySplit:9 }] });
-  const W = [9, 14, 58, 7, 13, 14, 16, 13, 13, 13, 13, 16, 16, 9];
-  W.forEach((w,k) => ws.getColumn(k+1).width = w);
-  const N = W.length, AZ = "FF17375E", CL = "FFDCE6F1", MOEDA = '"R$" #,##0.00', Q = '#,##0.000;-#,##0.000;"-"';
-  const vc = valorContrato(c);
-  bloco(ws, 1, 1, 1, N, "BOLETIM DE MEDIÇÃO Nº " + String(m.numero).padStart(2,"0"), { bold:true, size:16, fill:AZ, color:"FFFFFFFF" });
-  bloco(ws, 2, 1, 2, N, "L.M. EMPREENDIMENTOS E CONSULTORIA LTDA. — CNPJ 32.109.890/0001-60", { bold:true, size:11 });
-  const linha = (r, rot, val, rot2, val2) => {
-    bloco(ws, r, 1, r, 2, rot, { bold:true, size:10, h:"left", fill:CL }); bloco(ws, r, 3, r, 6, val, { size:10, h:"left" });
-    bloco(ws, r, 7, r, 9, rot2, { bold:true, size:10, h:"left", fill:CL }); bloco(ws, r, 10, r, N, val2, { size:10, h:"left" });
+  const wb = new ExcelJS.Workbook(); wb.creator = "Obras LM"; wb.created = new Date();
+  const logoB64 = await (async () => { const b = await (await fetch("logo-rc.png")).blob(); return await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); }); })();
+  const logo = wb.addImage({ base64:logoB64, extension:"png" });
+  const DK2 = "FF1F497D", AC8 = "FFDCE6F1", AC6 = "FFB8CCE4", DK28 = "FFC5D9F1", BR = "FFFFFFFF";
+  const MOEDA = '"R$"#,##0.00', QT = '#,##0.00##', PCT = '0.00%';
+  const fino = { style:"thin", color:{ argb:"FF000000" } }, med = { style:"medium", color:{ argb:"FF000000" } };
+  const nBM = String(m.numero).padStart(2, "0");
+  const dataMed = m.datas?.enviada || hoje();
+  const periodo = `${fmtBR(m.inicio)} a ${fmtBR(m.fim)}`;
+  const contratante = (c.contratante || "").toUpperCase();
+  const cel = (ws, ref, v, o2 = {}) => {
+    if (ref.includes(":")) ws.mergeCells(ref);
+    const [a, b] = ref.split(":"); const c0 = ws.getCell(a); c0.value = v;
+    const ra = ws.getCell(a), rb = ws.getCell(b || a);
+    for (let r = ra.row; r <= rb.row; r++) for (let k = ra.col; k <= rb.col; k++){
+      const x = ws.getCell(r, k);
+      x.font = { name:o2.font || "Arial", size:o2.size || 10, bold:!!o2.bold, color:{ argb:o2.cor || "FF000000" } };
+      x.alignment = { horizontal:o2.h || "center", vertical:"middle", wrapText:o2.wrap !== false };
+      if (o2.fill) x.fill = { type:"pattern", pattern:"solid", fgColor:{ argb:o2.fill } };
+      if (o2.borda !== false) x.border = { top:o2.bm ? med : fino, left:o2.bm ? med : fino, bottom:o2.bm ? med : fino, right:o2.bm ? med : fino };
+      if (o2.fmt) x.numFmt = o2.fmt;
+    }
   };
-  linha(3, "OBRA", o.nome, "CONTRATANTE", c.contratante || "");
-  linha(4, "OBJETO", c.objeto || "", "PROCESSO / CONTRATO", [c.processo, c.numero].filter(Boolean).join(" · "));
-  linha(5, "PERÍODO", `${fmtBR(m.inicio)} a ${fmtBR(m.fim)}`, "VALOR DO CONTRATO", vc);
-  ws.getCell(5,10).numFmt = MOEDA;
-  linha(6, "INÍCIO (OS)", c.inicio ? fmtBR(c.inicio) : "", "PRAZO", c.prazoMeses ? c.prazoMeses + " meses" : "");
-  ws.getRow(7).height = 6;
-  const cab = ["ITEM","CÓDIGO","DESCRIÇÃO","UN","QTD CONTRATADA","PREÇO UNIT. (R$)","TOTAL CONTRATADO (R$)","ACUM. ANTERIOR","NESTA MEDIÇÃO","ACUM. ATUAL","SALDO","VALOR NESTA MEDIÇÃO (R$)","VALOR ACUMULADO (R$)","% EXEC."];
-  ws.mergeCells(8,1,8,N); sty(ws.getCell(8,1), { bold:true, size:10, fill:CL }); ws.getCell(8,1).value = "PLANILHA DE MEDIÇÃO";
-  cab.forEach((t,k) => { const cell = ws.getCell(9, k+1); cell.value = t; sty(cell, { bold:true, size:9, fill:AZ, color:"FFFFFFFF" }); });
-  ws.getRow(9).height = 32;
-  let r = 10; const linhasItens = [];
+  /* ---------------- aba 1: boletim ---------------- */
+  const ws = wb.addWorksheet(`BOLETIM DE MEDIÇÃO BM${m.numero}`, { pageSetup:{ paperSize:9, orientation:"landscape", fitToPage:true, fitToWidth:1, fitToHeight:0,
+    margins:{ left:.3, right:.3, top:.4, bottom:.4, header:.2, footer:.2 } }, views:[{ state:"frozen", ySplit:8 }] });
+  [22.3,120.1,14.7,13,18.8,22.8,15.8,20.3,15.8,20.3,21.8,16.1,31.4,21.4,22.8].forEach((w,k) => ws.getColumn(k+1).width = w);
+  [27,27,27,18.75,18.9,60,22.5,23.25].forEach((h,k) => ws.getRow(k+1).height = h);
+  cel(ws, "A1:A3", "", { bm:true });
+  ws.addImage(logo, { tl:{ col:.25, row:.1 }, ext:{ width:110, height:100 } });
+  cel(ws, "B1:L3", `BOLETIM DE MEDIÇÃO OBRA ${o.nome}`, { size:18, bold:true, h:"left", bm:true });
+  const cab = { bold:true, fill:DK2, cor:BR };
+  // linhas dos itens
+  let r = 10; const lin = [];
+  cel(ws, "A9", "", {}); cel(ws, "B9", "SERVIÇOS ", { bold:true, h:"left" }); for (const L of "CDEFGHIJKLMNO") cel(ws, `${L}9`, "", {});
   for (const g of gruposContrato(c)){
-    bloco(ws, r, 1, r, N, g.nome, { bold:true, size:10, h:"left", fill:CL }); r++;
+    const num = (g.itens[0]?.item || "").split(".").slice(0, -1).join(".") || "";
+    cel(ws, `A${r}`, num, { bold:true, fill:AC8 }); cel(ws, `B${r}`, g.nome, { bold:true, fill:AC8, h:"left" });
+    for (const L of "CDEFGHIJKLMNO") cel(ws, `${L}${r}`, "", { fill:AC8 });
+    r++;
     for (const i of g.itens){
       const ant = acumAnterior(i.id, m.numero), q = Number(m.qtd?.[i.id] || 0);
-      const vals = [i.item, i.codigo || "", i.descricao, i.un, i.qtd, i.pu, { formula:`ROUND(E${r}*F${r},2)` }, ant, q,
-        { formula:`H${r}+I${r}` }, { formula:`E${r}-J${r}` }, { formula:`ROUND(I${r}*F${r},2)` }, { formula:`ROUND(J${r}*F${r},2)` }, { formula:`IF(E${r}=0,0,J${r}/E${r})` }];
-      vals.forEach((v,k) => { const cell = ws.getCell(r, k+1); cell.value = v;
-        sty(cell, { size:9, h: k === 2 ? "left" : "center", fmt: [4,7,8,9,10].includes(k) ? Q : [5,6,11,12].includes(k) ? MOEDA : k === 13 ? "0.0%" : undefined }); });
-      linhasItens.push(r); r++;
+      cel(ws, `A${r}`, i.item, {}); cel(ws, `B${r}`, i.descricao.toUpperCase(), { h:"left" }); cel(ws, `C${r}`, i.un, {});
+      cel(ws, `D${r}`, i.qtd, { fmt:QT }); cel(ws, `E${r}`, i.pu, { fmt:MOEDA }); cel(ws, `F${r}`, { formula:`ROUND(D${r}*E${r},2)` }, { fmt:MOEDA });
+      cel(ws, `G${r}`, ant, { fmt:QT }); cel(ws, `H${r}`, { formula:`ROUND(G${r}*E${r},2)` }, { fmt:MOEDA });
+      cel(ws, `I${r}`, q || null, { fmt:QT }); cel(ws, `J${r}`, { formula:`ROUND(I${r}*E${r},2)` }, { fmt:MOEDA }); cel(ws, `K${r}`, { formula:`IF(D${r}=0,0,I${r}/D${r})` }, { fmt:PCT });
+      cel(ws, `L${r}`, { formula:`I${r}+G${r}` }, { fmt:QT }); cel(ws, `M${r}`, { formula:`ROUND(L${r}*E${r},2)` }, { fmt:MOEDA });
+      cel(ws, `N${r}`, { formula:`D${r}-L${r}` }, { fmt:QT }); cel(ws, `O${r}`, { formula:`ROUND(N${r}*E${r},2)` }, { fmt:MOEDA });
+      if (i.descricao.length > 90) ws.getRow(r).height = 26.4;
+      lin.push(r); r++;
     }
   }
-  const soma = colL => `SUM(${linhasItens.map(x => colL + x).join(",")})`;
-  bloco(ws, r, 1, r, 6, "TOTAIS", { bold:true, size:10, fill:CL });
-  [["G", 7], ["L", 12], ["M", 13]].forEach(([L, k]) => { const cell = ws.getCell(r, k); cell.value = { formula: soma(L) }; sty(cell, { bold:true, size:10, fill:CL, fmt:MOEDA }); });
-  [8,9,10,11,14].forEach(k => sty(ws.getCell(r,k), { fill:CL }));
-  const rt = r; r += 2;
-  const resumo = [["VALOR DO CONTRATO", vc], ["MEDIDO ANTERIORMENTE", { formula:`M${rt}-L${rt}` }], ["VALOR DESTA MEDIÇÃO", { formula:`L${rt}` }],
-    ["VALOR ACUMULADO", { formula:`M${rt}` }], ["SALDO DO CONTRATO", { formula:`${col(10)}${r}-M${rt}` }], ["% EXECUTADO", { formula:`M${rt}/${col(10)}${r}` }]];
-  resumo.forEach(([t, v], k) => {
-    bloco(ws, r+k, 7, r+k, 9, t, { bold:true, size:10, h:"left", fill:CL });
-    bloco(ws, r+k, 10, r+k, 11, v, { bold:k === 2, size:10, fmt: k === 5 ? "0.00%" : MOEDA });
-  });
-  ws.getCell(r+4, 10).value = { formula:`J${r}-M${rt}` }; ws.getCell(r+5, 10).value = { formula:`M${rt}/J${r}` };
-  // assinaturas
-  const ra = r + 9;
-  [[1,3,"L.M. EMPREENDIMENTOS E CONSULTORIA LTDA.\nResponsável técnico"],[7,11,"FISCALIZAÇÃO\n" + (c.contratante || "Contratante")]].forEach(([c1,c2,t]) => {
-    bloco(ws, ra, c1, ra, c2, "", { border:false }); ws.getCell(ra, c1).border = { top:thin };
-    for (let k = c1; k <= c2; k++) ws.getCell(ra, k).border = { top:thin };
-    bloco(ws, ra+1, c1, ra+2, c2, t, { size:10, border:false });
-  });
+  const rt = r;
+  cel(ws, `A${rt}`, "", { fill:AC6 }); cel(ws, `B${rt}`, "TOTAL GERAL DO CONTRATO", { bold:true, fill:AC6 });
+  for (const L of "CDEGIKLN") cel(ws, `${L}${rt}`, "", { fill:AC6 });
+  for (const L of "FHJMO") cel(ws, `${L}${rt}`, { formula:`SUM(${L}10:${L}${rt - 1})` }, { bold:true, fill:AC6, fmt:MOEDA });
+  // cabeçalho (depois das linhas, para as fórmulas apontarem ao total)
+  cel(ws, "M1", "VALOR DA MEDIÇÃO: ", { bold:true, h:"right", borda:false }); cel(ws, "N1:O1", { formula:`J${rt}` }, { bold:true, fill:AC6, cor:DK2, fmt:MOEDA, size:12 });
+  cel(ws, "M2", "VALOR DO CONTRATO:", { bold:true, h:"right", borda:false }); cel(ws, "N2:O2", { formula:`F${rt}` }, { bold:true, fill:AC6, cor:DK2, fmt:MOEDA, size:12 });
+  cel(ws, "M3", "SALDO:", { bold:true, h:"right", borda:false }); cel(ws, "N3:O3", { formula:`O${rt}` }, { bold:true, fill:AC6, cor:DK2, fmt:MOEDA, size:12 });
+  cel(ws, "A4", "OBRA: ", { ...cab, h:"right" }); cel(ws, "B4:O4", contratante || o.nome, { bold:true, h:"left" });
+  cel(ws, "A5", "CONTRATO Nº: ", cab); cel(ws, "B5", "CONTRATANTE", cab); cel(ws, "C5:J5", "OBJETO DO CONTRATO: ", cab);
+  cel(ws, "K5:L5", "DATA DA MEDIÇÃO: ", cab); cel(ws, "M5:N5", "PERÍODO DE EXECUÇÃO:", cab); cel(ws, "O5", "MEDIÇÃO Nº:", cab);
+  cel(ws, "A6", c.numero || "", { bold:true }); cel(ws, "B6", contratante, { bold:true }); cel(ws, "C6:J6", (c.objeto || "").toUpperCase(), { size:9 });
+  cel(ws, "K6:L6", xlDate(dataMed), { fmt:"dd/mm/yyyy", bold:true }); cel(ws, "M6:N6", periodo, { bold:true }); cel(ws, "O6", m.numero, { bold:true, size:14 });
+  cel(ws, "A7:A8", "ITEM", cab); cel(ws, "B7:B8", "DESCRIMINAÇÃO DOS SERVIÇOS", cab);
+  cel(ws, "C7:F7", "CONTRATO", cab); cel(ws, "G7:H7", "ACUMULADO ANTERIOR", cab); cel(ws, "I7:K7", "REALIZADO NO PERÍODO ", cab);
+  cel(ws, "L7:M7", "ACUMULADO TOTAL", cab); cel(ws, "N7:O7", "SALDO DE CONTRATO", cab);
+  ["UNIDADE","QUANT.","PREÇO UNITÁRIO","PREÇO TOTAL","QUANT.","VALOR TOTAL","QUANT.","VALOR TOTAL","% EXECUTADA. ","QUANT.","VALOR TOTAL","QUANT.","VALOR TOTAL"].forEach((t,k) => cel(ws, `${"CDEFGHIJKLMNO"[k]}8`, t, cab));
+  // rodapé: valor, extenso, histórico de medições e assinaturas
+  const vMed = valorMed(m, c);
+  const f1 = rt + 1;
+  ws.getRow(f1).height = 30;
+  cel(ws, `A${f1}`, "VALOR DA MEDIÇÃO:", { bold:true, size:11, bm:true }); cel(ws, `B${f1}:K${f1}`, { formula:`J${rt}` }, { bold:true, size:12, fmt:MOEDA, h:"left", bm:true });
+  cel(ws, `L${f1}:O${f1 + 1}`, "VALOR DAS MEDIÇÕES", { bold:true, fill:AC8, bm:true });
+  cel(ws, `A${f1 + 1}:K${f1 + 1}`, `(${extenso(vMed)})`.toUpperCase(), { h:"left", size:10 });
+  const hist = S.ext.meds.filter(x => x.numero <= m.numero).sort((a,b) => a.numero - b.numero);
+  if (!hist.find(x => x.numero === m.numero)) hist.push(m);
+  let rh = f1 + 2;
+  for (const x of hist){
+    cel(ws, `L${rh}`, `BM ${String(x.numero).padStart(2,"0")}`, { bold:true }); cel(ws, `M${rh}:O${rh}`, x.numero === m.numero ? { formula:`J${rt}` } : valorMed(x, c), { fmt:MOEDA });
+    rh++;
+  }
+  cel(ws, `L${rh}`, "ACUMULADO", { bold:true, fill:AC6 }); cel(ws, `M${rh}:O${rh}`, { formula:`SUM(M${f1 + 2}:M${rh - 1})` }, { bold:true, fill:AC6, fmt:MOEDA });
+  const a1 = f1 + 3;
+  cel(ws, `A${a1}:B${a1}`, "CONTRATADA", { bold:true, h:"left", borda:false }); cel(ws, `C${a1}:F${a1}`, "CONTRATANTE / FISCALIZAÇÃO:", { bold:true, h:"left", borda:false });
+  cel(ws, `A${a1 + 1}:B${a1 + 1}`, "Ass.:", { h:"left", borda:false }); cel(ws, `C${a1 + 1}:F${a1 + 1}`, "Ass.:", { h:"left", borda:false });
+  ws.getRow(a1 + 3).height = 22;
+  cel(ws, `A${a1 + 4}:B${a1 + 4}`, "LM EMPREENDIMENTOS E CONSULTORIA LTDA", { bold:true, borda:false }); cel(ws, `C${a1 + 4}:K${a1 + 4}`, "ENGENHEIRO FISCAL " + (contratante ? contratante.replace(/^PREFEITURA MUNICIPAL DE /, "PREFEITURA ") : ""), { bold:true, borda:false });
+  [`A${a1 + 4}`, `B${a1 + 4}`].forEach(x => ws.getCell(x).border = { top:fino }); for (let k = 3; k <= 11; k++) ws.getCell(a1 + 4, k).border = { top:fino };
+  const a2 = a1 + 6;
+  cel(ws, `A${a2}:B${a2}`, "CONTRATADA", { bold:true, h:"left", borda:false }); cel(ws, `C${a2}:F${a2}`, "CONTRATANTE / FISCALIZAÇÃO:", { bold:true, h:"left", borda:false });
+  cel(ws, `A${a2 + 1}:B${a2 + 1}`, "Ass.:", { h:"left", borda:false }); cel(ws, `C${a2 + 1}:F${a2 + 1}`, "Ass.:", { h:"left", borda:false });
+  ws.getRow(a2 + 3).height = 22;
+  cel(ws, `A${a2 + 4}:B${a2 + 4}`, "ENGENHEIRO FISCAL", { bold:true, borda:false }); cel(ws, `C${a2 + 4}:K${a2 + 4}`, "CHEFE DEPARTAMENTO DE OBRAS", { bold:true, borda:false });
+  for (let k = 1; k <= 11; k++) ws.getCell(a2 + 4, k).border = { top:fino };
+  ws.pageSetup.printArea = `A1:O${a2 + 5}`;
+
+  /* ---------------- aba 2: memória de cálculo ---------------- */
+  const wm = wb.addWorksheet("MEMÓRIA  DE CALCULO", { pageSetup:{ paperSize:9, orientation:"portrait", fitToPage:true, fitToWidth:1, fitToHeight:0,
+    margins:{ left:.3, right:.3, top:.4, bottom:.4, header:.2, footer:.2 } } });
+  [3.3,51.1,25.4,35.8,34.7,26.3,24.7,22].forEach((w,k) => wm.getColumn(k+1).width = w);
+  const N = { font:"Arial Narrow", size:11 };
+  wm.getRow(1).height = 51;
+  cel(wm, "B1", "", { bm:true }); wm.addImage(logo, { tl:{ col:1.35, row:.08 }, ext:{ width:70, height:62 } });
+  cel(wm, "C1:H1", `MEMÓRIA DE CÁLCULO \n${contratante}`, { ...N, size:14, bold:true, bm:true });
+  cel(wm, "B2", "MEDIÇÃO:", { ...N, bold:true, h:"left" }); cel(wm, "C2", m.numero, { ...N, bold:true });
+  cel(wm, "D2", "PERÍODO:", { ...N, bold:true, h:"right" }); cel(wm, "E2:F2", periodo, { ...N });
+  cel(wm, "G2", "DATA DA MEDIÇÃO:", { ...N, bold:true, h:"right" }); cel(wm, "H2", xlDate(dataMed), { ...N, fmt:"dd/mm/yyyy" });
+  cel(wm, "B3", "CONTRATO:", { ...N, bold:true, h:"left" }); cel(wm, "C3:D3", c.numero || "", { ...N });
+  cel(wm, "E3", "ORDEM DE SERVIÇO", { ...N, bold:true, h:"right" }); cel(wm, "F3:H3", c.ordemServico || (c.inicio ? "início " + fmtBR(c.inicio) : ""), { ...N });
+  cel(wm, "B4:H4", "", { ...N, borda:false });
+  wm.getRow(5).height = 40.5;
+  cel(wm, "B5", "OBJETO DO CONTRATO: ", { ...N, bold:true, fill:AC6 }); cel(wm, "C5:H5", (c.objeto || "").toUpperCase(), { ...N, size:10 });
+  cel(wm, "B6:H6", "ITENS EXECUTADOS", { ...N, bold:true, fill:AC8 });
+  let rm = 7;
+  for (const g of gruposContrato(c)) for (const i of g.itens){
+    const ls = m.memoria?.[i.id] || [], q = Number(m.qtd?.[i.id] || 0);
+    if (!ls.length && !q) continue;
+    cel(wm, `B${rm}`, i.item, { ...N, bold:true }); cel(wm, `C${rm}:F${rm}`, i.descricao.toUpperCase(), { ...N, fill:DK28, h:"left" });
+    cel(wm, `G${rm}`, "", { ...N, fill:DK28 }); cel(wm, `H${rm}`, "", { ...N, fill:DK28 });
+    if (i.descricao.length > 60) wm.getRow(rm).height = 33;
+    rm++;
+    const ini = rm + 1;
+    if (ls.length){
+      ["LOCAL / ESTACAS","UNIDADE","COMPRIMENTO (m)","LARGURA (m)","ALTURA / ESP. (m)","QTD",i.un].forEach((t,k) => cel(wm, `${"BCDEFGH"[k]}${rm}`, t, { ...N, bold:true, fill:AC6 }));
+      rm++;
+      for (const l of ls){
+        const nv = s => { const v = num(String(s ?? "").trim()); return v === null ? null : v; };
+        let comp = nv(l.c); if (comp === null){ const a = estacaM(l.ei), b = estacaM(l.ef); if (a !== null && b !== null) comp = Math.abs(b - a); }
+        const loc = [l.local, (l.ei || l.ef) ? `Est. ${l.ei || "?"} a ${l.ef || "?"}` : ""].filter(Boolean).join(" — ");
+        cel(wm, `B${rm}`, loc, { ...N, h:"left" }); cel(wm, `C${rm}`, i.un, { ...N });
+        [comp, nv(l.l), nv(l.h), nv(l.n)].forEach((v,k) => cel(wm, `${"DEFG"[k]}${rm}`, v, { ...N, fmt:QT }));
+        cel(wm, `H${rm}`, { formula:`IF(COUNT(D${rm}:G${rm})=0,0,PRODUCT(D${rm}:G${rm}))` }, { ...N, fmt:QT });
+        rm++;
+      }
+      cel(wm, `B${rm}:G${rm}`, `TOTAL MEDIDO — ${i.item}`, { ...N, bold:true, h:"right" }); cel(wm, `H${rm}`, { formula:`SUM(H${ini}:H${rm - 1})` }, { ...N, bold:true, fill:AC8, fmt:QT });
+    } else {
+      cel(wm, `B${rm}`, "", { ...N }); cel(wm, `C${rm}`, "UNIDADE", { ...N, bold:true, fill:AC6 }); cel(wm, `D${rm}`, "QUANTIDADE", { ...N, bold:true, fill:AC6 });
+      for (const L of "EFG") cel(wm, `${L}${rm}`, "", { ...N }); cel(wm, `H${rm}`, i.un, { ...N, bold:true, fill:AC6 }); rm++;
+      cel(wm, `B${rm}`, "Quantidade medida no período", { ...N, h:"left" }); cel(wm, `C${rm}`, i.un, { ...N }); cel(wm, `D${rm}`, q, { ...N, fmt:QT });
+      for (const L of "EFG") cel(wm, `${L}${rm}`, "", { ...N }); cel(wm, `H${rm}`, { formula:`D${rm}` }, { ...N, bold:true, fill:AC8, fmt:QT });
+    }
+    rm += 2;
+  }
+  cel(wm, `B${rm}:H${rm}`, "Estaca de 20 m: sem comprimento informado, usa-se a distância entre as estacas.", { ...N, size:9, h:"left", borda:false });
+  wm.pageSetup.printArea = `B1:H${rm}`;
   const buf = await wb.xlsx.writeBuffer();
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([buf], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-  a.download = `BM ${String(m.numero).padStart(2,"0")} - ${o.nome} - ${fmtBR(m.inicio).replace(/\//g,"-")} a ${fmtBR(m.fim).replace(/\//g,"-")}.xlsx`;
-  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  toast("Boletim gerado.");
+  baixar(new Blob([buf], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `BM ${nBM} MEDIÇÃO - ${o.nome}${c.numero ? " - CONTRATO " + c.numero : ""}.xlsx`);
+  toast("Boletim de medição e memória de cálculo gerados (modelo LM).");
 }
 
 /* ======================================================================
@@ -3329,6 +3466,271 @@ async function exportarEstourada(){
 document.addEventListener("click", async ev => {
   const t = ev.target.closest("button"); if (!t || t.id !== "ctEstourada") return;
   try { await exportarEstourada(); } catch(e){ console.error(e); toast("Erro: " + e.message, true); }
+});
+
+/* ======================================================================
+   MEDIÇÃO: memória de cálculo por item e relatório fotográfico
+   - memória fica na própria medição: m.memoria = { itemId: [{ local, ei, ef, c, l, h, n }] }
+     parcial = n × C × L × H (campos vazios contam 1); sem comprimento e com estacas,
+     C = estaca final − estaca inicial (estaca de 20 m; "12+5,50" = 245,50 m)
+   - fotos ficam em obra_fotos/{id}: { obraId, medicaoId, item, servico, data, estaca, dataUrl }
+   ====================================================================== */
+const COL_FOTO = "obra_fotos";
+S.memAberto = null;
+S.fotosMed = { medId:null, lista:[] };
+
+function estacaM(s){
+  s = String(s ?? "").trim(); if (!s) return null;
+  const m = s.match(/^(-?\d+)\s*\+\s*([\d.,]+)$/);
+  if (m) return Number(m[1]) * 20 + (num(m[2]) || 0);
+  const v = num(s); return v === null ? null : v * 20;
+}
+function parcialMem(l){
+  const nv = s => { const v = num(String(s ?? "").trim()); return v === null ? null : v; };
+  let c = nv(l.c); const L = nv(l.l), H = nv(l.h), n = nv(l.n);
+  if (c === null){ const a = estacaM(l.ei), b = estacaM(l.ef); if (a !== null && b !== null) c = Math.abs(b - a); }
+  if (c === null && L === null && H === null && n === null) return 0;
+  return r2(((n ?? 1) * (c ?? 1) * (L ?? 1) * (H ?? 1)) * 1000) / 1000;
+}
+const somaMem = linhas => r2((linhas || []).reduce((s,l) => s + parcialMem(l), 0) * 1000) / 1000;
+function memEditor(i, m, travada){
+  const linhas = m.memoria?.[i.id] || [];
+  const cel = (k, l, f, ph, w) => travada ? `<td>${esc(l[f] ?? "")}</td>` : `<td><input class="ml" data-k="${k}" data-f="${f}" value="${esc(l[f] ?? "")}" placeholder="${ph}" style="width:${w}px"></td>`;
+  return `<div class="mem"><div class="row" style="justify-content:space-between"><b>Memória de cálculo — ${esc(i.item)} ${esc(i.descricao.slice(0,70))} (${esc(i.un)})</b>
+      <small class="nota" style="margin:0">Parcial = Qtd × Comprimento × Largura × Altura (vazio conta 1). Sem comprimento, usa a distância entre as estacas (20 m por estaca; ex.: 12+5,50).</small></div>
+    <table class="tb memt" data-mi="${i.id}"><thead><tr><th class="l">Local / descrição</th><th>Est. inicial</th><th>Est. final</th><th>Compr. (m)</th><th>Largura (m)</th><th>Altura / esp. (m)</th><th>Qtd</th><th>Parcial (${esc(i.un)})</th><th></th></tr></thead><tbody>
+    ${linhas.map((l,k) => `<tr data-k="${k}">${cel(k,l,"local","ex.: Rua A, lado direito",220)}${cel(k,l,"ei","0+0,00",80)}${cel(k,l,"ef","12+5,00",80)}${cel(k,l,"c","",80)}${cel(k,l,"l","",70)}${cel(k,l,"h","",70)}${cel(k,l,"n","",56)}
+      <td class="mp">${fmtQ(parcialMem(l))}</td><td>${travada ? "" : `<button class="x" data-memrm="${k}" title="Remover linha">✕</button>`}</td></tr>`).join("")}
+    </tbody><tfoot><tr><td colspan="7" class="l">TOTAL MEDIDO NO ITEM</td><td class="mt">${fmtQ(somaMem(linhas))}</td><td></td></tr></tfoot></table>
+    ${travada ? "" : `<div class="row" style="margin-top:6px"><button class="btn peq" data-memadd="${i.id}">+ Linha</button>${linhas.length ? `<button class="btn peq" data-memlimpa="${i.id}">Tirar memória deste item</button>` : ""}</div>`}</div>`;
+}
+function syncMemDom(){
+  const m = S.medDraft; if (!m) return;
+  $$("#v-medicoes table.memt").forEach(tb => {
+    const id = tb.dataset.mi; m.memoria ||= {};
+    const ls = m.memoria[id] || [];
+    tb.querySelectorAll("tbody tr[data-k]").forEach(tr => { const l = ls[+tr.dataset.k]; if (!l) return; tr.querySelectorAll(".ml").forEach(inp => l[inp.dataset.f] = inp.value.trim()); });
+    m.memoria[id] = ls;
+    if (ls.length) m.qtd[id] = somaMem(ls); else delete m.memoria[id];
+  });
+}
+// atualiza parciais, total do item e a quantidade da medição enquanto digita
+document.addEventListener("input", ev => {
+  if (!ev.target.classList?.contains("ml")) return;
+  syncMemDom();
+  const tb = ev.target.closest("table.memt"), id = tb.dataset.mi, ls = S.medDraft.memoria[id] || [];
+  tb.querySelectorAll("tbody tr[data-k]").forEach(tr => tr.querySelector(".mp").textContent = fmtQ(parcialMem(ls[+tr.dataset.k])));
+  tb.querySelector(".mt").textContent = fmtQ(somaMem(ls));
+  const inp = $(`#v-medicoes tr[data-it="${id}"] .mq`); if (inp) inp.value = fmtQ(somaMem(ls));
+  atualizaTotaisMed();
+});
+
+/* ---------------------------- exportação da memória ---------------------------- */
+async function exportarMemoria(){
+  const c = S.ext.contrato, m = medAtual(), o = obraAtual();
+  const wb = new ExcelJS.Workbook(); wb.creator = "Obras LM";
+  const ws = wb.addWorksheet("Memória de cálculo", { pageSetup:{ paperSize:9, orientation:"portrait", fitToPage:true, fitToWidth:1, fitToHeight:0 } });
+  const AZ = "FF17375E", CL = "FFDCE6F1", Q = '#,##0.000;-#,##0.000;"-"';
+  [34,12,12,12,11,12,9,15].forEach((w,k) => ws.getColumn(k+1).width = w);
+  ws.mergeCells(1,1,1,8); ws.getCell(1,1).value = `MEMÓRIA DE CÁLCULO — MEDIÇÃO Nº ${String(m.numero).padStart(2,"0")}`; sty(ws.getCell(1,1), { bold:true, size:14, fill:AZ, color:"FFFFFFFF" });
+  ws.mergeCells(2,1,2,8); ws.getCell(2,1).value = `Obra: ${o.nome} · ${c.contratante || ""} · Período: ${fmtBR(m.inicio)} a ${fmtBR(m.fim)}`; sty(ws.getCell(2,1), { size:10, h:"left" });
+  let r = 4;
+  for (const g of gruposContrato(c)) for (const i of g.itens){
+    const ls = m.memoria?.[i.id]; const q = Number(m.qtd?.[i.id] || 0);
+    if (!ls?.length && !q) continue;
+    ws.mergeCells(r,1,r,8); ws.getCell(r,1).value = `${i.item} — ${i.descricao} (${i.un})`; for (let k = 1; k <= 8; k++) sty(ws.getCell(r,k), { bold:true, size:10, fill:CL, h:"left" }); r++;
+    ["LOCAL / DESCRIÇÃO","EST. INICIAL","EST. FINAL","COMPRIMENTO (m)","LARGURA (m)","ALTURA/ESP. (m)","QTD","PARCIAL (" + i.un + ")"].forEach((t,k) => { const cell = ws.getCell(r,k+1); cell.value = t; sty(cell, { bold:true, size:8 }); }); r++;
+    const r0 = r;
+    if (ls?.length) for (const l of ls){
+      const nv = s => { const v = num(String(s ?? "")); return v === null ? null : v; };
+      let comp = nv(l.c); if (comp === null){ const a = estacaM(l.ei), b = estacaM(l.ef); if (a !== null && b !== null) comp = Math.abs(b - a); }
+      [l.local || "", l.ei || "", l.ef || "", comp, nv(l.l), nv(l.h), nv(l.n), parcialMem(l)].forEach((v,k) => { const cell = ws.getCell(r,k+1); cell.value = v; sty(cell, { size:9, h: k === 0 ? "left" : "center", fmt: k >= 3 ? Q : undefined }); });
+      r++;
+    } else { ws.mergeCells(r,1,r,7); ws.getCell(r,1).value = "Quantidade lançada sem memória detalhada"; sty(ws.getCell(r,1), { size:9, italic:true, h:"left" }); ws.getCell(r,8).value = q; sty(ws.getCell(r,8), { size:9, fmt:Q }); r++; }
+    ws.mergeCells(r,1,r,7); ws.getCell(r,1).value = "TOTAL DO ITEM NESTA MEDIÇÃO"; sty(ws.getCell(r,1), { bold:true, size:9, h:"right" });
+    ws.getCell(r,8).value = ls?.length ? { formula:`SUM(H${r0}:H${r-1})` } : q; sty(ws.getCell(r,8), { bold:true, size:9, fmt:Q });
+    r += 2;
+  }
+  ws.getCell(r,1).value = "Estaca de 20 m; quando o comprimento não é informado, usa-se a distância entre as estacas."; sty(ws.getCell(r,1), { size:8, italic:true, h:"left", border:false });
+  const buf = await wb.xlsx.writeBuffer();
+  baixar(new Blob([buf], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `MEMORIA DE CALCULO - BM ${String(m.numero).padStart(2,"0")} - ${o.nome}.xlsx`);
+  toast("Memória de cálculo gerada.");
+}
+
+/* ---------------------------- relatório fotográfico ---------------------------- */
+// reduz a foto para caber no banco (no máximo ~1600 px, JPEG)
+function comprimeFoto(arq){
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => { const im = new Image(); im.onload = () => {
+      let q = .78, lado = 1600, url;
+      do {
+        const k = Math.min(1, lado / Math.max(im.width, im.height));
+        const cv = document.createElement("canvas"); cv.width = Math.round(im.width * k); cv.height = Math.round(im.height * k);
+        cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height);
+        url = cv.toDataURL("image/jpeg", q); q -= .12; lado -= 200;
+      } while (url.length > 900000 && q > .3);
+      res({ dataUrl:url, w:Math.round(im.width * Math.min(1, (lado + 200) / Math.max(im.width, im.height))), h:0 });
+    }; im.onerror = rej; im.src = fr.result; };
+    fr.onerror = rej; fr.readAsDataURL(arq);
+  });
+}
+async function carregaFotos(m){
+  if (S.fotosMed.medId === m.id) return S.fotosMed.lista;
+  const l = await store.list(COL_FOTO, "medicaoId", m.id);
+  S.fotosMed = { medId:m.id, lista: l.sort((a,b) => (a.data || "").localeCompare(b.data || "") || (a.criadoEm || "").localeCompare(b.criadoEm || "")) };
+  return S.fotosMed.lista;
+}
+function cardFotos(m){
+  return `<div class="card" id="fotosCard"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Relatório fotográfico</h3>
+      <span class="row"><label class="btn peq" style="cursor:pointer">+ Fotos<input type="file" id="fotoAdd" accept="image/*" multiple hidden></label>
+      <button class="btn peq" id="fotoXls">Relatório fotográfico (Excel)</button><button class="btn peq" id="fotoPdf">Relatório fotográfico (PDF)</button></span></div>
+    <p class="nota">No modelo LM: 4 fotos por folha, uma folha por dia, com serviço, data e estaca. No celular, “+ Fotos” abre a câmera ou a galeria.</p>
+    <div id="fotosGrade" class="fotos"><div class="vazio">Carregando fotos...</div></div></div>`;
+}
+async function desenhaFotos(m){
+  const box = $("#fotosGrade"); if (!box) return;
+  const l = await carregaFotos(m); if (!$("#fotosGrade")) return;
+  const c = S.ext.contrato;
+  const opts = sel => `<option value="">— serviço —</option>${c.itens.map(i => `<option value="${i.id}" ${sel === i.id ? "selected" : ""}>${esc(i.item)} — ${esc(i.descricao.slice(0,55))}</option>`).join("")}`;
+  box.innerHTML = l.length ? l.map(f => `<div class="foto" data-fid="${f.id}"><img src="${f.dataUrl}" alt="">
+      <select data-ff="item">${opts(f.item)}</select>
+      <input data-ff="servico" placeholder="Legenda do serviço" value="${esc(f.servico || "")}">
+      <div class="row" style="gap:6px"><input type="date" data-ff="data" value="${f.data || ""}"><input data-ff="estaca" placeholder="Estaca" value="${esc(f.estaca || "")}" style="width:90px"><button class="x" data-fotorm="${f.id}" title="Excluir foto">✕</button></div></div>`).join("")
+    : `<div class="vazio">Nenhuma foto nesta medição ainda.</div>`;
+}
+async function salvaCampoFoto(div){
+  const f = S.fotosMed.lista.find(x => x.id === div.dataset.fid); if (!f) return;
+  div.querySelectorAll("[data-ff]").forEach(i => f[i.dataset.ff] = i.value.trim());
+  if (f.item && !f.servico){ const it = S.ext.contrato.itens.find(i => i.id === f.item); if (it){ f.servico = it.descricao.toUpperCase(); div.querySelector('[data-ff="servico"]').value = f.servico; } }
+  await store.set(COL_FOTO, f.id, f);
+}
+// páginas do relatório: fotos agrupadas por dia, até 4 por folha
+function paginasFotos(lista){
+  const porDia = {};
+  for (const f of lista){ const d = f.data || "sem-data"; (porDia[d] ||= []).push(f); }
+  const pags = [];
+  for (const d of Object.keys(porDia).sort()) for (let k = 0; k < porDia[d].length; k += 4) pags.push({ data:d, fotos:porDia[d].slice(k, k + 4) });
+  return pags;
+}
+const legendaFoto = f => (f.servico || S.ext.contrato.itens.find(i => i.id === f.item)?.descricao || "").toUpperCase();
+async function exportarFotosExcel(){
+  const c = S.ext.contrato, m = medAtual(), o = obraAtual(), lista = await carregaFotos(m);
+  if (!lista.length){ toast("Inclua fotos antes de gerar o relatório.", true); return; }
+  const pags = paginasFotos(lista), wb = new ExcelJS.Workbook(); wb.creator = "Obras LM";
+  const logoB64 = await (async () => { const b = await (await fetch("logo-rc.png")).blob(); return await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); }); })();
+  const logoId = wb.addImage({ base64:logoB64, extension:"png" });
+  // larguras e alturas iguais às do modelo LM
+  const LARG = { A:8.7, B:7.1, C:5.0, U:11 }, ALT = { 1:6, 2:40.15, 3:29.25, 4:12.75, 5:199.5, 6:35.25, 7:28.15, 8:3.75, 9:6, 10:3.75, 11:202.5, 12:33, 13:24.75, 14:20.1 };
+  const colPx = L => Math.round(((LARG[L] ?? 8.43) * 7 + 5));
+  const letras = "ABCDEFGHIJKLMNOPQRSTU".split("");
+  const usados = new Set();
+  const periodo = `${fmtBR(m.inicio).slice(0,5).replace("/","-")} A ${fmtBR(m.fim).replace(/\//g,"-")}`;
+  const imgDe = f => ({ id: wb.addImage({ base64:f.dataUrl, extension:"jpeg" }) });
+  for (const [pi, pg] of pags.entries()){
+    let nome = pg.data === "sem-data" ? "sem data" : pg.data.slice(8,10) + "-" + pg.data.slice(5,7);
+    let k = 2; const base = nome; while (usados.has(nome)) nome = `${base} (${k++})`; usados.add(nome);
+    const ws = wb.addWorksheet(nome, { pageSetup:{ paperSize:9, orientation:"portrait", fitToPage:true, fitToWidth:1, fitToHeight:1, horizontalCentered:true,
+      margins:{ left:.25, right:.25, top:.4, bottom:.4, header:.2, footer:.2 } } });
+    ws.pageSetup.printArea = "A1:U15";
+    letras.forEach(L => ws.getColumn(L).width = LARG[L] ?? 8.43);
+    Object.entries(ALT).forEach(([r, h]) => ws.getRow(+r).height = h);
+    const caixa = (ref, v, o = {}) => { if (ref.includes(":")) ws.mergeCells(ref); const c0 = ws.getCell(ref.split(":")[0]); c0.value = v;
+      const [a, b] = ref.split(":"); const r1 = +a.replace(/\D/g,""), r2_ = +(b || a).replace(/\D/g,""), c1 = letras.indexOf(a.replace(/\d/g,"")) + 1, c2 = letras.indexOf((b || a).replace(/\d/g,"")) + 1;
+      for (let r = r1; r <= r2_; r++) for (let cc = c1; cc <= c2; cc++) sty(ws.getCell(r, cc), { size:o.size || 11, bold:!!o.bold, h:o.h || "left", fill:o.fill, border:o.border !== false, fmt:o.fmt }); };
+    caixa("B2:C2", "", {});
+    ws.addImage(logoId, { tl:{ col:1.15, row:1.08 }, ext:{ width:58, height:48 } });
+    caixa("D2:T2", `RELATÓRIO FOTOGRÁFICO\nOBRA ${o.nome}${c.objeto ? " - " + c.objeto.replace(/^contratação de empresa especializada para /i, "").toUpperCase().slice(0, 80) : ""}`, { bold:true, h:"center", size:12 });
+    caixa("B3:C3", "Cliente: ", { bold:true }); caixa("D3:H3", c.contratante || "", {});
+    caixa("I3:J3", "Periodo:", { bold:true }); caixa("K3:O3", periodo, {});
+    caixa("P3", "Ref.:", { bold:true }); caixa("Q3:R3", pi + 1, { h:"center" }); caixa("S3", "DE ", { bold:true, h:"center" }); caixa("T3", pags.length, { h:"center" });
+    const quadros = [["B5:J5","B6:D6","E6:J6","B7","C7:G7","H7","I7:J7", 1, 9, 5], ["L5:T5","L6:N6","O6:T6","L7","M7:P7","Q7","R7:T7", 11, 19, 5],
+                     ["B11:J11","B12:D12","E12:J12","B13","C13:G13","H13","I13:J13", 1, 9, 11], ["L11:T11","L12:N12","O12:T12","L13","M13:P13","Q13","R13:T13", 11, 19, 11]];
+    quadros.forEach((qd, idx) => {
+      const f = pg.fotos[idx];
+      caixa(qd[0], "", {});
+      caixa(qd[1], "Serviço:", { bold:true }); caixa(qd[2], f ? legendaFoto(f) : "", { size:9 });
+      caixa(qd[3], "Data:", { bold:true }); caixa(qd[4], f && f.data ? xlDate(f.data) : "", { fmt:"dd/mm/yyyy" });
+      caixa(qd[5], "Est.:", { bold:true }); caixa(qd[6], f ? (f.estaca || "") : "", {});
+      if (!f) return;
+      // foto centralizada dentro do quadro, mantendo a proporção
+      const [c1, c2, row] = [qd[7], qd[8], qd[9]];
+      const cols = letras.slice(c1, c2 + 1), boxW = cols.reduce((s,L) => s + colPx(L), 0) - 8, boxH = ALT[row] * 96 / 72 - 8;
+      const im = new Image(); im.src = f.dataUrl;
+      const iw = f.w || 1600, ih = f.hh || 1200;
+      const k = Math.min(boxW / (im.naturalWidth || iw), boxH / (im.naturalHeight || ih));
+      const w = Math.round((im.naturalWidth || iw) * k), h = Math.round((im.naturalHeight || ih) * k);
+      let off = (boxW + 8 - w) / 2, col = c1; while (off > colPx(letras[col]) && col < c2){ off -= colPx(letras[col]); col++; }
+      ws.addImage(imgDe(f).id, { tl:{ col: col + off / colPx(letras[col]), row: row - 1 + ((boxH + 8 - h) / 2) / (ALT[row] * 96 / 72) }, ext:{ width:w, height:h } });
+    });
+  }
+  const buf = await wb.xlsx.writeBuffer();
+  baixar(new Blob([buf], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `RELATORIO FOTOGRAFICO - BM ${String(m.numero).padStart(2,"0")} - ${o.nome}.xlsx`);
+  toast(`Relatório fotográfico gerado (${pags.length} folha${pags.length > 1 ? "s" : ""}).`);
+}
+async function exportarFotosPdf(){
+  const c = S.ext.contrato, m = medAtual(), o = obraAtual(), lista = await carregaFotos(m);
+  if (!lista.length){ toast("Inclua fotos antes de gerar o relatório.", true); return; }
+  const pags = paginasFotos(lista), logo = new URL("logo-rc.png", location.href).href;
+  const periodo = `${fmtBR(m.inicio)} a ${fmtBR(m.fim)}`;
+  const quadro = f => f ? `<div class="q"><div class="ft"><img src="${f.dataUrl}"></div>
+      <table><tr><th>Serviço:</th><td colspan="3">${esc(legendaFoto(f))}</td></tr><tr><th>Data:</th><td>${f.data ? fmtBR(f.data) : ""}</td><th>Est.:</th><td>${esc(f.estaca || "")}</td></tr></table></div>`
+    : `<div class="q"><div class="ft"></div><table><tr><th>Serviço:</th><td colspan="3"></td></tr><tr><th>Data:</th><td></td><th>Est.:</th><td></td></tr></table></div>`;
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório fotográfico - BM ${m.numero} - ${esc(o.nome)}</title>
+<style>@page{size:A4 portrait;margin:8mm}*{box-sizing:border-box}body{margin:0;font-family:Calibri,"Segoe UI",Arial,sans-serif;color:#000}
+.barra{padding:10px;background:#f3f5f9;border-bottom:1px solid #ccc;font:14px system-ui}.barra button{padding:8px 14px;font-weight:700;cursor:pointer}
+.pg{width:194mm;height:280mm;margin:0 auto;padding:4mm 0;page-break-after:always;display:flex;flex-direction:column}
+.cab{display:grid;grid-template-columns:22mm 1fr;border:1px solid #000}.cab img{height:16mm;margin:2mm auto;display:block}
+.cab h1{margin:0;font-size:15px;text-align:center;align-self:center;border-left:1px solid #000;padding:3mm;white-space:pre-line}
+.info{display:grid;grid-template-columns:auto 1fr auto auto auto auto auto auto;border:1px solid #000;border-top:none;font-size:11px}
+.info b,.info span{padding:2mm;border-right:1px solid #000}.info span:last-child{border-right:none}
+.grade{flex:1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:4mm;margin-top:4mm}
+.q{display:flex;flex-direction:column;border:1px solid #000}.ft{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:0}
+.ft img{max-width:100%;max-height:100%;object-fit:contain}
+.q table{border-collapse:collapse;width:100%;font-size:10px}.q th,.q td{border-top:1px solid #000;padding:1.5mm;text-align:left}.q th{width:14mm;border-right:1px solid #000}
+.q td{border-right:1px solid #000}.q td:last-child{border-right:none}
+@media print{.barra{display:none}.pg{margin:0}}</style></head><body>
+<div class="barra"><button onclick="print()">Salvar como PDF / imprimir</button> No destino, escolha <b>Salvar como PDF</b>.</div>
+${pags.map((pg, k) => `<div class="pg"><div class="cab"><img src="${logo}"><h1>RELATÓRIO FOTOGRÁFICO\nOBRA ${esc(o.nome)}</h1></div>
+  <div class="info"><b>Cliente:</b><span>${esc(c.contratante || "")}</span><b>Período:</b><span>${periodo}</span><b>Ref.:</b><span>${k + 1}</span><b>DE</b><span>${pags.length}</span></div>
+  <div class="grade">${[0,1,2,3].map(i => quadro(pg.fotos[i])).join("")}</div></div>`).join("")}
+<script>window.addEventListener("load",()=>setTimeout(()=>print(),400))<\/script></body></html>`;
+  const w = window.open("", "_blank");
+  if (!w){ toast("O navegador bloqueou a janela do PDF. Permita pop-ups para este site.", true); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
+document.addEventListener("click", async ev => {
+  const t = ev.target.closest("button"); if (!t) return;
+  try {
+    if (t.dataset.mem){ syncMedDom(); syncMemDom(); S.memAberto = S.memAberto === t.dataset.mem ? null : t.dataset.mem; renderMedEditor(); return; }
+    if (t.dataset.memadd){ syncMedDom(); syncMemDom(); const m = S.medDraft; m.memoria ||= {}; (m.memoria[t.dataset.memadd] ||= []).push({ local:"", ei:"", ef:"", c:"", l:"", h:"", n:"" }); renderMedEditor(); return; }
+    if (t.dataset.memrm !== undefined){ syncMedDom(); syncMemDom(); const id = t.closest("table.memt").dataset.mi; S.medDraft.memoria[id].splice(+t.dataset.memrm, 1); if (!S.medDraft.memoria[id].length){ delete S.medDraft.memoria[id]; delete S.medDraft.qtd[id]; } else S.medDraft.qtd[id] = somaMem(S.medDraft.memoria[id]); renderMedEditor(); return; }
+    if (t.dataset.memlimpa){ if (!confirm("Tirar a memória deste item? A quantidade volta a ser digitada direto.")) return; syncMedDom(); syncMemDom(); delete S.medDraft.memoria[t.dataset.memlimpa]; renderMedEditor(); return; }
+    if (t.id === "medMemXls"){ await exportarMemoria(); return; }
+    if (t.id === "fotoXls"){ await exportarFotosExcel(); return; }
+    if (t.id === "fotoPdf"){ await exportarFotosPdf(); return; }
+    if (t.dataset.fotorm){ if (!confirm("Excluir esta foto?")) return; await store.del(COL_FOTO, t.dataset.fotorm); S.fotosMed.lista = S.fotosMed.lista.filter(f => f.id !== t.dataset.fotorm); desenhaFotos(medAtual()); return; }
+  } catch(e){ console.error(e); toast("Erro: " + e.message, true); }
+});
+document.addEventListener("change", async ev => {
+  try {
+    if (ev.target.id === "fotoAdd" && ev.target.files.length){
+      const m = medAtual(), arqs = [...ev.target.files]; ev.target.value = "";
+      toast(`Enviando ${arqs.length} foto(s)...`);
+      for (const a of arqs){
+        const { dataUrl } = await comprimeFoto(a);
+        const dims = await new Promise(r => { const im = new Image(); im.onload = () => r([im.naturalWidth, im.naturalHeight]); im.src = dataUrl; });
+        const f = { id:uid(), obraId:S.obraId, medicaoId:m.id, item:"", servico:"", data: a.lastModified ? iso(new Date(a.lastModified)) : hoje(), estaca:"", dataUrl, w:dims[0], hh:dims[1], criadoEm:agoraIso(), por:S.nome || "" };
+        if (f.data < m.inicio || f.data > m.fim) f.data = m.fim < hoje() ? m.fim : hoje();
+        await store.set(COL_FOTO, f.id, f); S.fotosMed.lista.push(f);
+      }
+      S.fotosMed.lista.sort((a,b) => (a.data || "").localeCompare(b.data || ""));
+      desenhaFotos(m); toast(`${arqs.length} foto(s) incluída(s). Escolha o serviço e a estaca de cada uma.`); return;
+    }
+    const div = ev.target.closest?.(".foto[data-fid]");
+    if (div && ev.target.dataset.ff){ await salvaCampoFoto(div); if (ev.target.dataset.ff === "data"){ S.fotosMed.lista.sort((a,b) => (a.data || "").localeCompare(b.data || "")); } }
+  } catch(e){ console.error(e); toast("Erro: " + e.message, true); }
 });
 
 async function carregaObras(){ S.obras = await store.list(COL_OBRAS); }
