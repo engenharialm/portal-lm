@@ -174,6 +174,13 @@
   .rqlin input,.rqlin select{padding:8px;border:1px solid var(--borda);border-radius:8px;min-width:0}
   @media (max-width:700px){ .rqlin,.rqlin.cot{grid-template-columns:1fr 1fr} .rqlin [data-f=descricao],.rqlin select,#ctForn,#ctObs{grid-column:1/-1} }
   .ic{margin-top:8px}
+  .rqlin2{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,2fr) 110px 80px 36px;gap:6px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--borda)}
+  .rqlin2 select,.rqlin2 input{padding:8px;border:1px solid var(--borda);border-radius:8px;min-width:0;width:100%}
+  .rqlin2 [data-f=descricao]{grid-column:1/-1;grid-row:2}
+  .rqlin2 .orc{grid-column:1/-1;font-size:12px;color:var(--mut);padding:6px 8px;border-radius:8px;background:rgba(30,142,62,.07)}
+  .rqlin2 .orc.passa{background:rgba(255,179,0,.14);color:#8a5a00}
+  @media (max-width:700px){ .rqlin2{grid-template-columns:1fr 1fr 36px} .rqlin2 select{grid-column:1/-1} .rqlin2 [data-f=descricao]{grid-row:auto} }
+  table.tb tr.foraplan td{background:rgba(255,179,0,.08)}
   .hist{font-size:13px;padding:5px 0;border-bottom:1px solid #eef1f6}
   details summary{cursor:pointer;color:var(--azul);font-weight:600;font-size:13px}
   .btn.on{background:var(--azul2);color:#fff;border-color:var(--azul2)}
@@ -308,6 +315,13 @@
   details summary{color:var(--lm-cyan)}
   .btn.on{background:linear-gradient(90deg,var(--lm-acc2),var(--lm-violet));border:none}
   .dados b{color:var(--lm-text)}
+  .rqlin2{border-bottom-color:var(--lm-line)}
+  .rqlin2 select,.rqlin2 input,#insBusca{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
+  .rqlin2 .orc{background:rgba(43,255,154,.07);color:var(--lm-muted)}
+  .rqlin2 .orc b{color:var(--lm-text)}
+  .rqlin2 .orc.passa{background:rgba(255,193,77,.12);color:#FFD27A}
+  .rqlin2 .orc.passa b{color:#FFD27A}
+  table.tb tr.foraplan td{background:rgba(255,193,77,.07)}
 }
 </style>
 </head>
@@ -1902,19 +1916,20 @@ function renderCompras(){
   const lista = S.reqTodas ? (S.todasReqs || []) : S.ext.reqs;
   const cont = k => lista.filter(r => r.status === k).length;
   let h = `<div class="pipe">${["aberta","aprovada","cotacao","pedido","parcial"].map(k => { const s = stReq(k); return `<div style="--c:${s.cor}"><span>${s.t}</span><b>${cont(k)}</b></div>`; }).join("")}
-    <div style="--c:#FF6B7A"><span>Atrasadas</span><b>${lista.filter(reqAtrasada).length}</b><small>data de necessidade vencida</small></div></div>`;
+    <div style="--c:#FF6B7A"><span>Atrasadas</span><b>${lista.filter(reqAtrasada).length}</b><small>data de necessidade vencida</small></div>
+    <div style="--c:#FFC14D"><span>Fora do planejado</span><b>${lista.filter(r => reqFora(r) && reqConta(r)).length}</b><small>${fmtR(r2(lista.filter(r => reqFora(r) && r.pedido && reqConta(r)).reduce((s,r) => s + (Number(r.pedido.valor)||0), 0)))} em pedidos</small></div></div>`;
   h += `<div class="card"><div class="row" style="justify-content:space-between">
       <h3 style="margin:0">Requisições de compra — ${S.reqTodas ? "todas as obras" : esc(obraAtual().nome)}</h3>
       <span class="row">${ehGeral() ? `<button class="btn peq ${S.reqTodas ? "on" : ""}" id="reqTodas">${S.reqTodas ? "Só esta obra" : "Todas as obras"}</button>` : ""}
-      <select id="reqFiltro">${[["pendentes","Pendentes"],["atrasadas","Atrasadas"],["todas","Todas"],...STATUS_REQ.map(s => [s.k, s.t])].map(([k,t]) => `<option value="${k}" ${S.reqFiltro===k?"selected":""}>${t}</option>`).join("")}</select></span></div>`;
+      <select id="reqFiltro">${[["pendentes","Pendentes"],["atrasadas","Atrasadas"],["fora","Fora do planejado"],["todas","Todas"],...STATUS_REQ.map(s => [s.k, s.t])].map(([k,t]) => `<option value="${k}" ${S.reqFiltro===k?"selected":""}>${t}</option>`).join("")}</select></span></div>`;
   const f = S.reqFiltro;
-  const vis = lista.filter(r => f === "todas" ? true : f === "pendentes" ? !reqFechada(r) : f === "atrasadas" ? reqAtrasada(r) : r.status === f)
+  const vis = lista.filter(r => f === "todas" ? true : f === "pendentes" ? !reqFechada(r) : f === "atrasadas" ? reqAtrasada(r) : f === "fora" ? reqFora(r) : r.status === f)
                    .sort((a,b) => (reqAtrasada(b) - reqAtrasada(a)) || (b.urgente - a.urgente) || (b.criadoEm||"").localeCompare(a.criadoEm||""));
   if (!vis.length) h += `<div class="vazio">Nenhuma requisição ${f === "todas" ? "" : "neste filtro"}.</div>`;
   else {
     h += `<div class="tbwrap"><table class="tb"><thead><tr>${S.reqTodas ? `<th class="l">Obra</th>` : ""}<th>Nº</th><th class="l">Itens</th><th>Pedido em</th><th>Precisa até</th><th>Solicitante</th><th>Situação</th><th>Fornecedor / valor</th><th></th></tr></thead><tbody>`;
     for (const r of vis){
-      h += `<tr class="${reqAtrasada(r) ? "atraso" : ""}">${S.reqTodas ? `<td class="l">${esc(r.obraNome||"")}</td>` : ""}<td><b>${r.numero}</b>${r.urgente ? `<br><span class="chip" style="--c:#FF6B7A">urgente</span>` : ""}</td>
+      h += `<tr class="${reqAtrasada(r) ? "atraso" : ""}">${S.reqTodas ? `<td class="l">${esc(r.obraNome||"")}</td>` : ""}<td><b>${r.numero}</b>${r.urgente ? `<br><span class="chip" style="--c:#FF6B7A">urgente</span>` : ""}${reqFora(r) ? `<br><span class="chip" style="--c:#FFC14D">fora do planejado</span>` : ""}</td>
         <td class="l">${r.itens.slice(0,3).map(i => `${esc(i.descricao)} <small>(${fmtQ(i.qtd)} ${esc(i.un)})</small>`).join("<br>")}${r.itens.length > 3 ? `<br><small>+${r.itens.length-3} itens</small>` : ""}</td>
         <td>${fmtBR((r.criadoEm||"").slice(0,10))}</td><td>${r.necessidade ? fmtBR(r.necessidade) + (reqAtrasada(r) ? `<br><small class="neg">atrasada</small>` : "") : "—"}</td>
         <td>${esc(r.solicitante||"")}</td><td>${chipReq(r.status)}</td>
@@ -1933,52 +1948,171 @@ function renderCompras(){
     h += `<div class="card"><h3>Comprado ${S.reqTodas ? "(todas as obras)" : "nesta obra"} — ${fmtR(tot)}</h3>${Object.entries(porForn).sort((a,b) => b[1]-a[1]).map(([f,v]) =>
       `<div class="barlinha"><span>${esc(f)}</span><div class="barra"><i style="width:${tot ? v/tot*100 : 0}%"></i></div><b>${fmtR(v)}</b></div>`).join("")}</div>`;
   }
+  if (!S.reqTodas) h += cardInsumos();
   el.innerHTML = h;
 }
+/* ---- requisição: serviço do contrato → insumo da CPU (orçado × já pedido × saldo) ---- */
+const reqConta = r => !["recusada","cancelada"].includes(r.status);
+// quanto já foi pedido daquele insumo naquele serviço (requisições válidas desta obra)
+function jaPedido(itemC, cod, ignorarId){
+  let q = 0;
+  for (const r of S.ext.reqs){
+    if (!reqConta(r) || r.id === ignorarId) continue;
+    for (const l of r.itens) if (l.itemContrato === itemC && l.insumoCod === cod) q += Number(l.qtd) || 0;
+  }
+  return q;
+}
+function insumoOrcado(itemC, cod){
+  const it = S.ext.contrato?.itens?.find(i => i.id === itemC);
+  const ins = it?.insumos?.find(x => x.codigo === cod);
+  return ins ? { ...ins, orcado: r2(ins.consumo * it.qtd * 1000) / 1000, item: it } : null;
+}
+const foraPlan = l => !l.insumoCod || l.excedente;
+const reqFora = r => r.itens.some(foraPlan);
+
 function formNovaReq(){
   const c = S.ext.contrato;
-  const opts = (c?.itens || []).map(i => `<option value="${i.id}">${esc(i.item)} — ${esc(i.descricao.slice(0,70))}</option>`).join("");
-  S.reqLinhas = S.reqLinhas || [{ descricao:"", qtd:"", un:"", itemContrato:"" }];
+  const itens = c?.itens || [];
+  S.reqLinhas = S.reqLinhas || [{ itemContrato:"", insumoCod:"", descricao:"", qtd:"", un:"" }];
+  const linha = (l, k) => {
+    const it = itens.find(i => i.id === l.itemContrato);
+    const insOpts = (it?.insumos || []).map(x => `<option value="${esc(x.codigo)}" ${l.insumoCod===x.codigo?"selected":""}>${esc(x.descricao.slice(0,70))} (${esc(x.un)})</option>`).join("");
+    let info = "";
+    if (l.insumoCod && l.insumoCod !== "__fora"){
+      const o = insumoOrcado(l.itemContrato, l.insumoCod);
+      if (o){
+        const ped = jaPedido(l.itemContrato, l.insumoCod), saldo = r2((o.orcado - ped) * 1000) / 1000, q = num(l.qtd) || 0;
+        const passa = q > saldo + 0.0005;
+        info = `<div class="orc ${passa ? "passa" : ""}">Orçado <b>${fmtQ(o.orcado)} ${esc(o.un)}</b> · já pedido <b>${fmtQ(ped)}</b> · saldo <b>${fmtQ(saldo)} ${esc(o.un)}</b>
+          ${passa ? ` — <b>passa ${fmtQ(r2((q - saldo)*1000)/1000)} ${esc(o.un)} do orçado (fora do planejado)</b>` : ""}</div>`;
+      }
+    } else if (l.insumoCod === "__fora" || (l.itemContrato === "__fora")){
+      info = `<div class="orc passa">Material fora da composição: será marcado como <b>fora do planejado</b> e precisa de justificativa.</div>`;
+    }
+    const fora = l.insumoCod === "__fora" || l.itemContrato === "__fora";
+    return `<div class="rqlin2" data-k="${k}">
+      <select data-f="itemContrato"><option value="">1. Serviço do contrato...</option>
+        ${itens.map(i => `<option value="${i.id}" ${l.itemContrato===i.id?"selected":""}>${esc(i.item)} — ${esc(i.descricao.slice(0,60))}${i.insumos?.length ? "" : " (sem material na CPU)"}</option>`).join("")}
+        <option value="__fora" ${l.itemContrato==="__fora"?"selected":""}>Nenhum serviço / uso geral da obra (fora do planejado)</option></select>
+      ${l.itemContrato && l.itemContrato !== "__fora" ? `<select data-f="insumoCod"><option value="">2. Insumo da composição...</option>${insOpts}
+        <option value="__fora" ${l.insumoCod==="__fora"?"selected":""}>Outro material (não está na composição)</option></select>` : ""}
+      ${fora ? `<input data-f="descricao" placeholder="Material (ex.: ÓLEO DIESEL)" value="${esc(l.descricao)}">` : ""}
+      <input data-f="qtd" inputmode="decimal" placeholder="Qtd" value="${esc(l.qtd)}">
+      <input data-f="un" list="unidades" placeholder="Un" value="${esc(l.un)}" ${!fora && l.insumoCod ? "readonly" : ""}>
+      <button class="x" data-rqrm="${k}" title="Remover">✕</button>
+      ${info}</div>`;
+  };
   return `<div class="row" style="margin-bottom:10px"><button class="btn peq" id="reqVoltar">‹ Voltar</button></div>
     <div class="card"><h3>Nova requisição de compra — ${esc(obraAtual().nome)}</h3>
     <div class="form">
-      <label>Solicitante<input id="rqSol" value="${esc(S.nome||"")}"></label>
-      <label>Precisa na obra até<input type="date" id="rqNec" value="${addDays(hoje(), 7)}"></label>
-      <label class="chk"><input type="checkbox" id="rqUrg"> Urgente</label>
+      <label>Solicitante<input id="rqSol" value="${esc(S.reqCab?.sol ?? S.nome ?? "")}"></label>
+      <label>Precisa na obra até<input type="date" id="rqNec" value="${S.reqCab?.nec || addDays(hoje(), 7)}"></label>
+      <label class="chk"><input type="checkbox" id="rqUrg" ${S.reqCab?.urg ? "checked" : ""}> Urgente</label>
     </div>
-    <h3 style="margin-top:14px">Materiais / serviços</h3>
-    <div id="rqLinhas">${S.reqLinhas.map((l,k) => `<div class="rqlin" data-k="${k}">
-      <input data-f="descricao" placeholder="Material (ex.: BRITA GRADUADA SIMPLES)" value="${esc(l.descricao)}">
-      <input data-f="qtd" inputmode="decimal" placeholder="Qtd" value="${esc(l.qtd)}">
-      <input data-f="un" list="unidades" placeholder="Un" value="${esc(l.un)}">
-      ${opts ? `<select data-f="itemContrato"><option value="">Serviço do contrato (opcional)</option>${opts.replace(`value="${l.itemContrato}"`, `value="${l.itemContrato}" selected`)}</select>` : ""}
-      <button class="x" data-rqrm="${k}" title="Remover">✕</button></div>`).join("")}</div>
-    <button class="btn peq" id="rqAddLin">+ Linha</button>
-    <label class="full" style="display:block;margin-top:12px">Observações (especificação, local de entrega, fornecedor sugerido...)<textarea id="rqObs"></textarea></label>
+    <h3 style="margin-top:14px">Materiais</h3>
+    ${itens.length ? `<p class="nota" style="margin:0 0 8px">Escolha o serviço e depois o insumo da composição: o sistema mostra o orçado e o saldo. O que não estiver na composição, ou passar do saldo, entra como <b>fora do planejado</b>.</p>`
+                   : `<p class="nota" style="margin:0 0 8px">Esta obra ainda não tem contrato cadastrado: todos os materiais entram como fora do planejado.</p>`}
+    <div id="rqLinhas">${S.reqLinhas.map(linha).join("")}</div>
+    <button class="btn peq" id="rqAddLin">+ Material</button>
+    <label class="full" style="display:block;margin-top:12px">Observações (especificação, local de entrega, fornecedor sugerido...)<textarea id="rqObs">${esc(S.reqCab?.obs || "")}</textarea></label>
+    <label class="full" id="rqJustBox" style="display:${S.reqLinhas.some(l => l.itemContrato === "__fora" || l.insumoCod === "__fora" || linhaPassa(l)) ? "block" : "none"};margin-top:12px">
+      Justificativa do fora do planejado (obrigatória)<textarea id="rqJust">${esc(S.reqCab?.just || "")}</textarea></label>
   </div>`;
 }
-function syncReqLinhas(){
-  S.reqLinhas = $$("#rqLinhas .rqlin").map(d => { const o = {}; d.querySelectorAll("[data-f]").forEach(i => o[i.dataset.f] = i.value.trim()); return o; });
+function linhaPassa(l){
+  if (!l.insumoCod || l.insumoCod === "__fora") return false;
+  const o = insumoOrcado(l.itemContrato, l.insumoCod); if (!o) return false;
+  return (num(l.qtd) || 0) > o.orcado - jaPedido(l.itemContrato, l.insumoCod) + 0.0005;
 }
+function syncReqLinhas(){
+  if ($("#rqSol")) S.reqCab = { sol:$("#rqSol").value, nec:$("#rqNec").value, urg:$("#rqUrg").checked, obs:$("#rqObs").value, just:$("#rqJust")?.value || "" };
+  S.reqLinhas = $$("#rqLinhas .rqlin2").map(d => { const o = { itemContrato:"", insumoCod:"", descricao:"", qtd:"", un:"" }; d.querySelectorAll("[data-f]").forEach(i => o[i.dataset.f] = i.value.trim()); return o; });
+}
+// ao trocar serviço/insumo: preenche a unidade e redesenha a linha
+document.addEventListener("change", ev => {
+  const d = ev.target.closest?.(".rqlin2"); if (!d) return;
+  const f = ev.target.dataset.f;
+  if (f !== "itemContrato" && f !== "insumoCod") return;
+  syncReqLinhas();
+  const l = S.reqLinhas[+d.dataset.k];
+  if (f === "itemContrato"){ l.insumoCod = ""; l.un = ""; l.descricao = ""; }
+  if (f === "insumoCod" && l.insumoCod && l.insumoCod !== "__fora"){ const o = insumoOrcado(l.itemContrato, l.insumoCod); if (o){ l.un = o.un; l.descricao = o.descricao; } }
+  if (f === "insumoCod" && l.insumoCod === "__fora"){ l.un = ""; l.descricao = ""; }
+  renderReqDetalhe();
+});
+// ao digitar a quantidade: atualiza o aviso de saldo sem redesenhar
+document.addEventListener("input", ev => {
+  if (ev.target.dataset?.f !== "qtd" || !ev.target.closest(".rqlin2")) return;
+  syncReqLinhas();
+  const d = ev.target.closest(".rqlin2"), l = S.reqLinhas[+d.dataset.k];
+  const box = d.querySelector(".orc");
+  if (box && l.insumoCod && l.insumoCod !== "__fora"){
+    const o = insumoOrcado(l.itemContrato, l.insumoCod), ped = jaPedido(l.itemContrato, l.insumoCod), saldo = r2((o.orcado - ped)*1000)/1000, q = num(l.qtd) || 0;
+    box.classList.toggle("passa", q > saldo + 0.0005);
+    box.innerHTML = `Orçado <b>${fmtQ(o.orcado)} ${esc(o.un)}</b> · já pedido <b>${fmtQ(ped)}</b> · saldo <b>${fmtQ(saldo)} ${esc(o.un)}</b>` +
+      (q > saldo + 0.0005 ? ` — <b>passa ${fmtQ(r2((q-saldo)*1000)/1000)} ${esc(o.un)} do orçado (fora do planejado)</b>` : "");
+  }
+  $("#rqJustBox").style.display = S.reqLinhas.some(x => x.itemContrato === "__fora" || x.insumoCod === "__fora" || linhaPassa(x)) ? "block" : "none";
+});
 async function salvarNovaReq(){
   syncReqLinhas();
   const itens = [];
   for (const l of S.reqLinhas){
-    if (!l.descricao && !l.qtd) continue;
+    if (!l.itemContrato && !l.qtd && !l.descricao) continue;
     const q = num(l.qtd);
-    if (!l.descricao || q === null || q <= 0){ toast("Cada linha precisa de material e quantidade.", true); return; }
-    itens.push({ descricao:l.descricao.toUpperCase(), qtd:q, un:normUn(l.un || "un"), itemContrato:l.itemContrato || null });
+    const semServ = !l.itemContrato || l.itemContrato === "__fora";
+    const outro = semServ || l.insumoCod === "__fora";
+    if (!semServ && !l.insumoCod){ toast("Escolha o insumo de cada serviço (ou 'Outro material').", true); return; }
+    if (outro && !l.descricao){ toast("Descreva o material fora da composição.", true); return; }
+    if (q === null || q <= 0){ toast("Informe a quantidade de cada material.", true); return; }
+    const o = !outro ? insumoOrcado(l.itemContrato, l.insumoCod) : null;
+    const saldo = o ? o.orcado - jaPedido(l.itemContrato, l.insumoCod) : 0;
+    itens.push({ descricao:(o ? o.descricao : l.descricao).toUpperCase(), qtd:q, un:normUn(o ? o.un : (l.un || "un")),
+      itemContrato: semServ ? null : l.itemContrato, insumoCod: outro ? null : l.insumoCod,
+      orcado: o ? o.orcado : null, saldoAntes: o ? r2(saldo*1000)/1000 : null, excedente: o ? q > saldo + 0.0005 : false });
   }
   if (!itens.length){ toast("Inclua ao menos um material.", true); return; }
   const sol = $("#rqSol").value.trim(); if (!sol){ toast("Informe o solicitante.", true); return; }
+  const fora = itens.some(foraPlan), just = $("#rqJust")?.value.trim() || "";
+  if (fora && !just){ toast("Explique por que há material fora do planejado.", true); $("#rqJust").focus(); return; }
   const numero = Math.max(0, ...S.ext.reqs.map(r => r.numero || 0)) + 1;
   const r = { id:uid(), obraId:S.obraId, obraNome:obraAtual().nome, numero, solicitante:sol, necessidade:$("#rqNec").value || null,
-    urgente:$("#rqUrg").checked, itens, obs:$("#rqObs").value.trim(), status:"aberta", cotacoes:[], recebimentos:[],
-    criadoEm:agoraIso(), historico:[{ data:hoje(), texto:"Requisição aberta", por:sol }] };
-  if (S.nome !== sol && !S.nome){ S.nome = sol; localStorage.setItem("diarioLM_nome", sol); }
+    urgente:$("#rqUrg").checked, itens, obs:$("#rqObs").value.trim(), foraPlanejado:fora, justificativa: fora ? just : "",
+    status:"aberta", cotacoes:[], recebimentos:[], criadoEm:agoraIso(), historico:[{ data:hoje(), texto:"Requisição aberta" + (fora ? " (com material fora do planejado)" : ""), por:sol }] };
+  if (!S.nome){ S.nome = sol; localStorage.setItem("diarioLM_nome", sol); }
   await store.set(COL_REQ, r.id, r);
-  S.reqLinhas = null; S.reqNova = false; await loadExtras(true); S.reqSel = r.id; renderCompras(); toast(`Requisição nº ${numero} aberta.`);
+  S.reqLinhas = null; S.reqCab = null; await loadExtras(true); S.reqSel = r.id; renderCompras(); toast(`Requisição nº ${numero} aberta.`);
 }
+// planejamento de insumos da obra: orçado × requisitado × recebido, por serviço
+function cardInsumos(){
+  const c = S.ext.contrato; if (!c?.itens?.some(i => i.insumos?.length)) return "";
+  const busca = norm(S.insBusca || "");
+  let linhas = "", n = 0;
+  for (const it of c.itens){
+    for (const x of (it.insumos || [])){
+      if (busca && !norm(x.descricao + " " + it.descricao + " " + it.item).includes(busca)) continue;
+      const orc = r2(x.consumo * it.qtd * 1000) / 1000, ped = jaPedido(it.id, x.codigo);
+      let rec = 0;
+      for (const r of S.ext.reqs) if (reqConta(r)) r.itens.forEach((l,k) => { if (l.itemContrato === it.id && l.insumoCod === x.codigo) rec += recebido(r,k); });
+      const p = orc ? ped / orc : 0;
+      if (S.insSoPedidos && !ped) continue;
+      n++;
+      linhas += `<tr><td>${esc(it.item)}</td><td class="l">${esc(x.descricao)}<br><small>${esc(it.descricao.slice(0,60))}</small></td><td>${esc(x.un)}</td>
+        <td>${fmtQ(orc)}</td><td>${ped ? fmtQ(ped) : "—"}</td><td>${rec ? fmtQ(rec) : "—"}</td><td>${fmtQ(r2((orc-ped)*1000)/1000)}</td>
+        <td><div class="barra"><i style="width:${Math.min(100,p*100)}%" class="${p > 1.0001 ? "estouro" : ""}"></i></div><small>${ped ? fmtP(p) : ""}</small></td>
+        <td>${fmtR(r2(orc * x.pu))}</td></tr>`;
+    }
+  }
+  return `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Insumos planejados (composições do contrato)</h3>
+      <span class="row"><label class="row" style="gap:6px"><input type="checkbox" id="insSoPed" ${S.insSoPedidos ? "checked" : ""}> só os já pedidos</label>
+      <input id="insBusca" placeholder="Buscar (cimento, brita, CBUQ...)" value="${esc(S.insBusca || "")}" style="min-width:220px"></span></div>
+    <div class="tbwrap" style="margin-top:10px;max-height:460px"><table class="tb"><thead><tr><th>Item</th><th class="l">Insumo / serviço</th><th>Un</th><th>Orçado</th><th>Pedido</th><th>Recebido</th><th>Saldo</th><th>%</th><th>Custo orçado</th></tr></thead>
+    <tbody>${linhas || `<tr><td colspan="9" class="vazio">Nada encontrado.</td></tr>`}</tbody></table></div>
+    <p class="nota">Orçado = consumo da composição × quantidade contratada do serviço (custo direto, sem BDI). Mão de obra e horas de equipamento não entram.</p></div>`;
+}
+document.addEventListener("input", ev => { if (ev.target.id === "insBusca"){ S.insBusca = ev.target.value; const pos = ev.target.selectionStart; renderCompras(); const i = $("#insBusca"); if (i){ i.focus(); i.setSelectionRange(pos, pos); } } });
+document.addEventListener("change", ev => { if (ev.target.id === "insSoPed"){ S.insSoPedidos = ev.target.checked; renderCompras(); } });
+
 function reqAtual(){ return (S.reqTodas ? (S.todasReqs || []) : S.ext.reqs).find(r => r.id === S.reqSel) || S.ext.reqs.find(r => r.id === S.reqSel); }
 function renderReqDetalhe(){
   const el = $("#v-compras");
@@ -1993,10 +2127,13 @@ function renderReqDetalhe(){
       <div><span>Precisa até</span><b class="${reqAtrasada(r) ? "neg" : ""}">${r.necessidade ? fmtBR(r.necessidade) : "—"}</b></div>
       ${r.obs ? `<div class="full"><span>Observações</span><b>${esc(r.obs)}</b></div>` : ""}
     </div>
-    <div class="tbwrap" style="margin-top:10px"><table class="tb"><thead><tr><th class="l">Material</th><th>Qtd pedida</th><th>Un</th><th>Recebido</th><th>Falta</th><th class="l">Serviço do contrato</th></tr></thead><tbody>${
+    <div class="tbwrap" style="margin-top:10px"><table class="tb"><thead><tr><th class="l">Material</th><th>Qtd pedida</th><th>Un</th><th>Orçado / saldo antes</th><th>Recebido</th><th>Falta</th><th class="l">Serviço do contrato</th></tr></thead><tbody>${
       r.itens.map((i,k) => { const rc = recebido(r,k), it = S.ext.contrato?.itens?.find(x => x.id === i.itemContrato);
-        return `<tr><td class="l">${esc(i.descricao)}</td><td>${fmtQ(i.qtd)}</td><td>${esc(i.un)}</td><td>${rc ? fmtQ(rc) : "—"}</td><td>${fmtQ(Math.max(0, r2((i.qtd-rc)*1000)/1000))}</td><td class="l"><small>${it ? esc(it.item + " — " + it.descricao.slice(0,60)) : "—"}</small></td></tr>`; }).join("")
-    }</tbody></table></div></div>`;
+        return `<tr class="${foraPlan(i) ? "foraplan" : ""}"><td class="l">${esc(i.descricao)}${foraPlan(i) ? `<br><span class="chip" style="--c:#FFC14D">${i.excedente ? "acima do orçado" : "fora da composição"}</span>` : ""}</td>
+          <td>${fmtQ(i.qtd)}</td><td>${esc(i.un)}</td><td>${i.orcado != null ? `${fmtQ(i.orcado)}<br><small>saldo ${fmtQ(i.saldoAntes)}</small>` : "—"}</td>
+          <td>${rc ? fmtQ(rc) : "—"}</td><td>${fmtQ(Math.max(0, r2((i.qtd-rc)*1000)/1000))}</td><td class="l"><small>${it ? esc(it.item + " — " + it.descricao.slice(0,60)) : "uso geral / sem serviço"}</small></td></tr>`; }).join("")
+    }</tbody></table></div>
+    ${r.justificativa ? `<div class="info" style="margin-top:10px"><b>Fora do planejado — justificativa:</b> ${esc(r.justificativa)}</div>` : ""}</div>`;
   // aprovação
   if (r.status === "aberta" && g) h += `<div class="card"><h3>Aprovação</h3><div class="row"><button class="btn pri peq" id="rqAprovar">Aprovar</button>
       <button class="btn peq" id="rqRecusar" style="color:var(--erro)">Recusar</button></div></div>`;
