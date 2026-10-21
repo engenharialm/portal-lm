@@ -2075,7 +2075,9 @@ function renderCompras(){
   if (!S.obraId && !S.reqTodas){ el.innerHTML = semObra(); setSavebar(""); return; }
   if (!S.reqTodas && precisaCarregar(el, renderCompras)) return;
   if (S.reqSel){ renderReqDetalhe(); return; }
-  setSavebar(`<button class="btn pri" id="reqNova">+ Nova requisição</button>`);
+  const temMapa = !S.reqTodas && S.ext.contrato?.itens?.some(i => i.insumos?.length);
+  setSavebar(`<button class="btn pri" id="reqNova">+ Nova requisição</button>` +
+    (temMapa ? `<button class="btn" id="mapaXls" title="Todos os insumos da obra: orçado, pedido, recebido e saldo">Mapa de insumos (Excel)</button><button class="btn" id="mapaPdf">Mapa de insumos (PDF)</button>` : ""));
   const lista = S.reqTodas ? (S.todasReqs || []) : S.ext.reqs;
   const cont = k => lista.filter(r => r.status === k).length;
   let h = `<div class="pipe">${["aberta","devolvida","enviada","aprovada","cotacao","pedido"].map(k => { const s = stReq(k); return `<div style="--c:${s.cor}"><span>${s.t}</span><b>${cont(k)}</b></div>`; }).join("")}
@@ -3082,6 +3084,123 @@ document.addEventListener("click", async ev => {
 document.addEventListener("change", async ev => {
   if (ev.target.id === "plImp" && ev.target.files[0]){ try { await importarMSProject(ev.target.files[0]); } catch(e){ console.error(e); toast("Erro ao ler o arquivo: " + e.message, true); } ev.target.value = ""; }
   if (ev.target.closest?.("#v-plano") && (ev.target.classList.contains("pi") || ev.target.classList.contains("pf"))){ syncPlano(); renderPlanejamento(); }
+});
+
+/* ---------------- mapa de insumos da obra (Excel / PDF) ---------------- */
+function dadosMapa(){
+  const c = S.ext.contrato, reqs = S.ext.reqs.filter(reqConta);
+  const porCod = {}, porServ = [];
+  const pedRec = (itemC, cod) => {
+    let ped = 0, rec = 0;
+    for (const r of reqs) r.itens.forEach((l,k) => { if (l.insumoCod === cod && (!itemC || l.itemContrato === itemC)){ ped += Number(l.qtd) || 0; rec += recebido(r,k); } });
+    return { ped, rec };
+  };
+  for (const it of (c?.itens || [])){
+    for (const x of (it.insumos || [])){
+      const orc = x.consumo * it.qtd, pr = pedRec(it.id, x.codigo);
+      porServ.push({ item:it.item, servico:it.descricao, cod:x.codigo, desc:x.descricao, un:x.un, consumo:x.consumo, orc, pu:x.pu, custo:orc * x.pu, ped:pr.ped, rec:pr.rec });
+      const g = porCod[x.codigo] ||= { cod:x.codigo, desc:x.descricao, un:x.un, pu:x.pu, orc:0, custo:0, servicos:[] };
+      g.orc += orc; g.custo += orc * x.pu; if (!g.servicos.includes(it.item)) g.servicos.push(it.item);
+    }
+  }
+  const consol = Object.values(porCod).map(g => { const pr = pedRec(null, g.cod); return { ...g, ped:pr.ped, rec:pr.rec }; }).sort((a,b) => b.custo - a.custo);
+  const fora = [];
+  for (const r of reqs) r.itens.forEach((l,k) => { if (foraPlan(l)) fora.push({ rc:rcNum(r), data:(r.criadoEm||"").slice(0,10), desc:l.descricao, qtd:l.qtd, un:l.un, motivo: l.excedente ? "acima do orçado" : "fora da composição",
+    just:r.justificativa || "", status:stReq(r.status).t, pedido: r.pedido ? `${r.pedido.fornecedor} ${fmtR(r.pedido.valor)}` : "", rec:recebido(r,k) }); });
+  return { consol, porServ, fora, totOrc: r2(consol.reduce((s,g) => s + g.custo, 0)) };
+}
+async function exportarMapaExcel(){
+  const c = S.ext.contrato, o = obraAtual(), d = dadosMapa();
+  const wb = new ExcelJS.Workbook(); wb.creator = "Obras LM"; wb.created = new Date();
+  const AZ = "FF17375E", CL = "FFDCE6F1", MOEDA = '"R$" #,##0.00', Q = '#,##0.000;-#,##0.000;"-"', PU = '"R$" #,##0.0000';
+  const cab = (ws, titulo, cols) => {
+    ws.mergeCells(1, 1, 1, cols); Object.assign(ws.getCell(1,1), { value: titulo });
+    sty(ws.getCell(1,1), { bold:true, size:14, fill:AZ, color:"FFFFFFFF" });
+    ws.mergeCells(2, 1, 2, cols);
+    ws.getCell(2,1).value = `Obra: ${o.nome} · ${c.contratante || ""} · ${[c.processo, c.numero].filter(Boolean).join(" · ")} · gerado em ${new Date().toLocaleString("pt-BR")}`;
+    sty(ws.getCell(2,1), { size:10, h:"left" });
+  };
+  const linhaCab = (ws, row, nomes, larg) => { nomes.forEach((t,k) => { const cell = ws.getCell(row, k+1); cell.value = t; sty(cell, { bold:true, size:10, fill:CL }); ws.getColumn(k+1).width = larg[k]; }); ws.getRow(row).height = 30; };
+  // 1) consolidado por insumo
+  const ws1 = wb.addWorksheet("Mapa de insumos", { pageSetup:{ paperSize:9, orientation:"landscape", fitToPage:true, fitToWidth:1, fitToHeight:0 }, views:[{ state:"frozen", ySplit:4 }] });
+  cab(ws1, "MAPA DE INSUMOS DA OBRA — orçado × pedido × recebido", 11);
+  linhaCab(ws1, 4, ["CÓDIGO","INSUMO","UN","QTD ORÇADA","PREÇO REF.","CUSTO ORÇADO","QTD PEDIDA","QTD RECEBIDA","SALDO A COMPRAR","% PEDIDO","SERVIÇOS"], [14,52,7,15,14,17,14,14,15,10,22]);
+  let r = 5;
+  for (const g of d.consol){
+    const vals = [g.cod, g.desc, g.un, g.orc, g.pu, { formula:`D${r}*E${r}` }, g.ped, g.rec, { formula:`D${r}-G${r}` }, { formula:`IF(D${r}=0,0,G${r}/D${r})` }, g.servicos.join(", ")];
+    vals.forEach((v,k) => { const cell = ws1.getCell(r, k+1); cell.value = v; sty(cell, { size:10, h: [1,10].includes(k) ? "left" : "center", fmt: [3,6,7,8].includes(k) ? Q : k === 4 ? PU : k === 5 ? MOEDA : k === 9 ? "0.0%" : undefined }); });
+    r++;
+  }
+  ws1.mergeCells(r, 1, r, 5); ws1.getCell(r,1).value = "TOTAL ORÇADO EM MATERIAIS (custo direto, sem BDI)"; sty(ws1.getCell(r,1), { bold:true, size:10, fill:CL, h:"left" });
+  ws1.getCell(r,6).value = { formula:`SUM(F5:F${r-1})` }; sty(ws1.getCell(r,6), { bold:true, size:10, fill:CL, fmt:MOEDA });
+  // 2) por serviço
+  const ws2 = wb.addWorksheet("Por serviço", { pageSetup:{ paperSize:9, orientation:"landscape", fitToPage:true, fitToWidth:1, fitToHeight:0 }, views:[{ state:"frozen", ySplit:4 }] });
+  cab(ws2, "INSUMOS POR SERVIÇO (composições do orçamento)", 11);
+  linhaCab(ws2, 4, ["ITEM","SERVIÇO","CÓDIGO","INSUMO","UN","CONSUMO / UN","QTD ORÇADA","CUSTO ORÇADO","QTD PEDIDA","QTD RECEBIDA","SALDO"], [8,40,14,44,7,13,15,16,14,14,14]);
+  r = 5;
+  for (const x of d.porServ){
+    [x.item, x.servico, x.cod, x.desc, x.un, x.consumo, x.orc, x.custo, x.ped, x.rec, { formula:`G${r}-I${r}` }].forEach((v,k) => {
+      const cell = ws2.getCell(r, k+1); cell.value = v; sty(cell, { size:9, h: [1,3].includes(k) ? "left" : "center", fmt: [5,6,8,9,10].includes(k) ? Q : k === 7 ? MOEDA : undefined }); });
+    r++;
+  }
+  // 3) fora do planejado
+  const ws3 = wb.addWorksheet("Fora do planejado", { pageSetup:{ paperSize:9, orientation:"landscape", fitToPage:true, fitToWidth:1, fitToHeight:0 } });
+  cab(ws3, "COMPRAS FORA DO PLANEJADO (fora da composição ou acima do orçado)", 10);
+  linhaCab(ws3, 4, ["RC","DATA","MATERIAL","QTD","UN","MOTIVO","JUSTIFICATIVA","SITUAÇÃO","PEDIDO","RECEBIDO"], [10,11,40,12,7,18,44,18,26,12]);
+  r = 5;
+  if (!d.fora.length){ ws3.mergeCells(5,1,5,10); ws3.getCell(5,1).value = "Nenhuma compra fora do planejado."; sty(ws3.getCell(5,1), { size:10 }); }
+  for (const x of d.fora){
+    [x.rc, x.data ? fmtBR(x.data) : "", x.desc, x.qtd, x.un, x.motivo, x.just, x.status, x.pedido, x.rec].forEach((v,k) => {
+      const cell = ws3.getCell(r, k+1); cell.value = v; sty(cell, { size:9, h: [2,6,8].includes(k) ? "left" : "center", fmt: [3,9].includes(k) ? Q : undefined }); });
+    r++;
+  }
+  const buf = await wb.xlsx.writeBuffer();
+  baixar(new Blob([buf], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `MAPA DE INSUMOS - ${o.nome}.xlsx`);
+  toast("Mapa de insumos gerado em Excel.");
+}
+function exportarMapaPdf(){
+  const c = S.ext.contrato, o = obraAtual(), d = dadosMapa();
+  const logo = new URL("logo-rc.png", location.href).href;
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Mapa de insumos - ${esc(o.nome)}</title>
+<style>
+  @page{size:A4 landscape;margin:8mm}
+  body{margin:0;font-family:Calibri,"Segoe UI",Arial,sans-serif;color:#000;background:#fff;font-size:9.5px}
+  .barra{padding:10px;background:#f3f5f9;border-bottom:1px solid #ccc;font:14px system-ui}.barra button{padding:8px 14px;font-weight:700;cursor:pointer}
+  .cab{display:flex;align-items:center;gap:12px;border-bottom:2px solid #17375E;padding:6px 0;margin:6px 0 8px}
+  .cab img{height:44px}.cab h1{font-size:17px;margin:0}.cab p{margin:2px 0 0;color:#444}
+  table{border-collapse:collapse;width:100%;margin-bottom:10px}
+  th,td{border:1px solid #888;padding:2px 4px}th{background:#DCE6F1;font-size:9px}
+  td.n{text-align:right;white-space:nowrap}td.c{text-align:center}
+  tfoot td{font-weight:700;background:#F2F2F2}
+  h2{font-size:12px;margin:10px 0 4px;color:#17375E}
+  .neg{color:#C00000;font-weight:700}
+  @media print{.barra{display:none}thead{display:table-header-group}tr{break-inside:avoid}}
+</style></head><body>
+<div class="barra"><button onclick="print()">Salvar como PDF / imprimir</button> No destino, escolha <b>Salvar como PDF</b>.</div>
+<div class="cab"><img src="${logo}" alt="LM"><div><h1>MAPA DE INSUMOS DA OBRA — ${esc(o.nome)}</h1>
+  <p>${esc(c.contratante || "")} · ${esc([c.processo, c.numero].filter(Boolean).join(" · "))} · gerado em ${new Date().toLocaleString("pt-BR")}</p>
+  <p>Orçado = consumo das composições × quantidade contratada (custo direto, sem BDI). Pedido e recebido = requisições de compra válidas.</p></div></div>
+<h2>Consolidado por insumo</h2>
+<table><thead><tr><th>Código</th><th>Insumo</th><th>Un</th><th>Qtd orçada</th><th>Preço ref.</th><th>Custo orçado</th><th>Pedido</th><th>Recebido</th><th>Saldo a comprar</th><th>% pedido</th><th>Serviços</th></tr></thead><tbody>
+${d.consol.map(g => `<tr><td class="c">${esc(g.cod)}</td><td>${esc(g.desc)}</td><td class="c">${esc(g.un)}</td><td class="n">${fmtQ(r2(g.orc*1000)/1000)}</td><td class="n">${fmtRU(g.pu)}</td>
+  <td class="n">${fmtR(r2(g.custo))}</td><td class="n">${g.ped ? fmtQ(r2(g.ped*1000)/1000) : "—"}</td><td class="n">${g.rec ? fmtQ(r2(g.rec*1000)/1000) : "—"}</td>
+  <td class="n ${g.orc - g.ped < -0.0005 ? "neg" : ""}">${fmtQ(r2((g.orc-g.ped)*1000)/1000)}</td><td class="n">${g.orc ? fmtP(g.ped/g.orc) : "—"}</td><td>${esc(g.servicos.join(", "))}</td></tr>`).join("")}
+</tbody><tfoot><tr><td colspan="5">TOTAL ORÇADO EM MATERIAIS</td><td class="n">${fmtR(d.totOrc)}</td><td colspan="5"></td></tr></tfoot></table>
+<h2>Compras fora do planejado</h2>
+${d.fora.length ? `<table><thead><tr><th>RC</th><th>Data</th><th>Material</th><th>Qtd</th><th>Un</th><th>Motivo</th><th>Justificativa</th><th>Situação</th><th>Pedido</th></tr></thead><tbody>
+${d.fora.map(x => `<tr><td class="c">${esc(x.rc)}</td><td class="c">${x.data ? fmtBR(x.data) : ""}</td><td>${esc(x.desc)}</td><td class="n">${fmtQ(x.qtd)}</td><td class="c">${esc(x.un)}</td><td>${esc(x.motivo)}</td><td>${esc(x.just)}</td><td>${esc(x.status)}</td><td>${esc(x.pedido)}</td></tr>`).join("")}
+</tbody></table>` : "<p>Nenhuma compra fora do planejado.</p>"}
+<script>window.addEventListener("load",()=>setTimeout(()=>print(),300))<\/script></body></html>`;
+  const w = window.open("", "_blank");
+  if (!w){ toast("O navegador bloqueou a janela do PDF. Permita pop-ups para este site.", true); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+document.addEventListener("click", async ev => {
+  const t = ev.target.closest("button"); if (!t) return;
+  try {
+    if (t.id === "mapaXls"){ await exportarMapaExcel(); return; }
+    if (t.id === "mapaPdf"){ exportarMapaPdf(); return; }
+  } catch(e){ console.error(e); toast("Erro: " + e.message, true); }
 });
 
 async function carregaObras(){ S.obras = await store.list(COL_OBRAS); }
