@@ -185,6 +185,13 @@
   .rqlin2 .orc.passa{background:rgba(255,179,0,.14);color:#8a5a00}
   @media (max-width:700px){ .rqlin2{grid-template-columns:1fr 1fr 36px} .rqlin2 select{grid-column:1/-1} .rqlin2 [data-f=descricao]{grid-row:auto} }
   table.tb tr.foraplan td{background:rgba(255,179,0,.08)}
+  .rqx{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap}
+  .rqx label{flex-direction:row!important;align-items:center;gap:6px}
+  .rqx input{width:150px}.rqx select{width:auto}
+  .eqbox{margin-top:12px;padding:10px 12px;border:1px dashed var(--borda);border-radius:10px}
+  #rqEqSel{padding:8px;border:1px solid var(--borda);border-radius:8px;max-width:100%;min-width:0;flex:1}
+  .eqbox .form input,.eqbox .form select{padding:8px 10px;border:1px solid var(--borda);border-radius:8px;width:100%}
+  .dados small{font-size:11px;color:var(--mut)}
   .teto{display:flex;flex-direction:column;gap:2px;margin-top:10px;padding:10px 12px;border:1px solid var(--borda);border-left:4px solid var(--azul2);border-radius:10px}
   .teto span{font-size:11px;text-transform:uppercase;color:var(--mut)}
   .teto b{font-size:18px}
@@ -332,6 +339,8 @@
   .rqlin2 .orc.passa{background:rgba(255,193,77,.12);color:#FFD27A}
   .rqlin2 .orc.passa b{color:#FFD27A}
   table.tb tr.foraplan td{background:rgba(255,193,77,.07)}
+  .eqbox{border-color:var(--lm-line2)}
+  #rqEqSel,.eqbox .form input,.eqbox .form select{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
   .teto{border-color:var(--lm-line);border-left-color:var(--lm-cyan);background:rgba(61,242,255,.04)}
   .teto b{color:var(--lm-cyan);font-family:Orbitron,sans-serif}
 }
@@ -1906,7 +1915,9 @@ async function exportarBoletim(){
    COMPRAS — requisições, cotação, pedido e recebimento
    ====================================================================== */
 const STATUS_REQ = [
-  { k:"aberta",    t:"Aberta",            cor:"#FFC14D" },
+  { k:"aberta",    t:"Emitida (obra)",    cor:"#FFC14D" },
+  { k:"devolvida", t:"Devolvida p/ ajuste", cor:"#FF9F43" },
+  { k:"enviada",   t:"Enviada a Compras", cor:"#9BE15D" },
   { k:"aprovada",  t:"Aprovada",          cor:"#3DF2FF" },
   { k:"cotacao",   t:"Em cotação",        cor:"#00A3DA" },
   { k:"pedido",    t:"Pedido emitido",    cor:"#7B5CFF" },
@@ -1929,7 +1940,7 @@ function renderCompras(){
   setSavebar(`<button class="btn pri" id="reqNova">+ Nova requisição</button>`);
   const lista = S.reqTodas ? (S.todasReqs || []) : S.ext.reqs;
   const cont = k => lista.filter(r => r.status === k).length;
-  let h = `<div class="pipe">${["aberta","aprovada","cotacao","pedido","parcial"].map(k => { const s = stReq(k); return `<div style="--c:${s.cor}"><span>${s.t}</span><b>${cont(k)}</b></div>`; }).join("")}
+  let h = `<div class="pipe">${["aberta","devolvida","enviada","aprovada","cotacao","pedido"].map(k => { const s = stReq(k); return `<div style="--c:${s.cor}"><span>${s.t}</span><b>${cont(k)}</b></div>`; }).join("")}
     <div style="--c:#FF6B7A"><span>Atrasadas</span><b>${lista.filter(reqAtrasada).length}</b><small>data de necessidade vencida</small></div>
     <div style="--c:#FFC14D"><span>Fora do planejado</span><b>${lista.filter(r => reqFora(r) && reqConta(r)).length}</b><small>${fmtR(r2(lista.filter(r => reqFora(r) && r.pedido && reqConta(r)).reduce((s,r) => s + (Number(r.pedido.valor)||0), 0)))} em pedidos</small></div></div>`;
   h += `<div class="card"><div class="row" style="justify-content:space-between">
@@ -1994,6 +2005,139 @@ const txtRef = rf => rf.sem === rf.total ? "sem referência (material fora da co
 const difRef = (v, ref) => { if (!ref) return ""; const d = v / ref - 1; return `<span class="${d > 0.0005 ? "neg" : "pos"}">${d > 0 ? "+" : ""}${(d*100).toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span>`; };
 const reqFora = r => r.itens.some(foraPlan);
 
+/* ---- RC no modelo LM: antecedência, equipamento, envio a Compras e exportação ---- */
+const RC_MAX = 27;   // linhas de itens do modelo
+const rcNum = r => "RC " + String(r.numero).padStart(3, "0");
+// dias úteis (seg a sex) entre duas datas: conta os dias depois de "de" até "ate"
+function diasUteis(de, ate){
+  if (!de || !ate || ate <= de) return 0;
+  let n = 0, d = de;
+  while (d < ate){ d = addDays(d, 1); const w = parseIso(d).getDay(); if (w !== 0 && w !== 6) n++; }
+  return n;
+}
+function antecedencia(r){
+  const exige = r.itens.some(i => (i.classe || (i.insumoCod ? "final" : "consumo")) === "final") ? 5 : 3;
+  const base = r.envio?.data || hoje();
+  const tem = diasUteis(base, r.necessidade);
+  return { exige, tem, ok: !r.necessidade || tem >= exige };
+}
+async function equipamentosLM(){
+  if (!S.equipLM){ try { S.equipLM = (await store.list("equipamentos")).sort((a,b) => (a.tipo||"").localeCompare(b.tipo||"")); } catch(e){ console.error(e); S.equipLM = []; } }
+  return S.equipLM;
+}
+const eqRotulo = e => [e.tipo, e.marca, e.modelo, e.placa || e.tag].filter(Boolean).join(" · ") + (e.obra ? ` — ${e.obra}` : "");
+function eqDoControle(e){
+  const terceiro = !/PR[ÓO]PRIO/i.test(e.locacao || "");
+  return { descricao:e.tipo || "", codigo:e.tag || e.sieng || "", pt: terceiro ? "T" : "P", terceiro: terceiro ? (e.proprietario || "") : "",
+           marca:e.marca || "", modelo:e.modelo || "", serie:"", ano:e.ano || "", placa:e.placa || "", chassi:e.chassis || "", idControle:e.id };
+}
+
+/* ---------------------------- exportação ---------------------------- */
+function rcCampos(r){
+  const eq = r.equipamento || {};
+  const dt = s => s ? fmtBR(s) : "";
+  return {
+    D6: rcNum(r), D7: dt((r.criadoEm || "").slice(0,10)), F7: dt(r.envio?.data), H7: r.envio?.hora || "",
+    D8: r.solicitante || "", F8: r.fornecedorSugerido || "", I8: r.prazoEntrega || (r.necessidade ? "até " + fmtBR(r.necessidade) : ""),
+    D9: r.localEntrega || "", G9: r.obraNome || "", I9: r.responsavelObra || "",
+    D10: eq.descricao || "", F10: eq.codigo || "", H10: eq.pt || "", J10: eq.terceiro || "",
+    D11: eq.marca || "", F11: eq.modelo || "", H11: eq.serie || "", J11: eq.ano || "",
+    D12: eq.placa || "", F12: eq.chassi || "", I12: r.envio?.responsavel ? `${r.envio.responsavel} — ${dt(r.envio.data)} ${r.envio.hora || ""}` : ""
+  };
+}
+function rcRodape(r){
+  const rf = refReq(r), ant = antecedencia(r);
+  const obs = [r.urgente ? "URGENTE" : "", r.obs, r.justificativa ? "Fora do planejado: " + r.justificativa : ""].filter(Boolean).join(" · ");
+  const ap = r.aprovacao ? `Aprovada por ${r.aprovacao.por} em ${fmtBR(r.aprovacao.data)} ${r.aprovacao.hora || ""}` : "Aguardando aprovação de Compras";
+  return {
+    C42: "OBSERVAÇÕES: " + (obs || "—") + (r.necessidade ? ` · Necessário na obra até ${fmtBR(r.necessidade)} (${ant.tem} dias úteis; mínimo ${ant.exige})` : ""),
+    C43: `COMPRAS: ${ap} · Valor de referência (orçamento): ${txtRef(rf)} · Gerada pelo sistema de Obras LM em ${new Date().toLocaleString("pt-BR")}`
+  };
+}
+async function exportarRCExcel(r){
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(await (await fetch("modelo-rc.xlsx")).arrayBuffer());
+  const ws = wb.worksheets[0]; ws.name = rcNum(r).replace(" ", "-");
+  const put = (ref, v) => { ws.getCell(ref).value = v; };
+  for (const [ref, v] of Object.entries(rcCampos(r))) put(ref, v);
+  // no modelo as linhas 33 a 36 não estão mescladas como as outras
+  for (let row = 33; row <= 36; row++){
+    try { ws.mergeCells(`C${row}:D${row}`); } catch(e){}
+    try { ws.mergeCells(`E${row}:H${row}`); } catch(e){}
+  }
+  r.itens.slice(0, RC_MAX).forEach((i, k) => {
+    const row = 15 + k;
+    put(`C${row}`, i.codigo || i.insumoCod || "");
+    put(`E${row}`, i.descricao + ((i.classe || (i.insumoCod ? "final" : "consumo")) === "final" ? " *" : " **"));
+    put(`I${row}`, i.un); put(`J${row}`, i.qtd);
+    ws.getCell(`J${row}`).numFmt = '#,##0.###';
+    ["C","E","I","J"].forEach(c => { ws.getCell(`${c}${row}`).alignment = { vertical:"middle", horizontal: c === "E" ? "left" : "center", wrapText:true }; });
+  });
+  const rod = rcRodape(r);
+  put("C42", rod.C42); put("C43", rod.C43);
+  ["C42","C43"].forEach(c => { ws.getCell(c).alignment = { vertical:"top", horizontal:"left", wrapText:true }; ws.getCell(c).font = { name:"Calibri", size:10 }; });
+  const buf = await wb.xlsx.writeBuffer();
+  baixar(new Blob([buf], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `${rcNum(r)} - ${r.obraNome}.xlsx`);
+  toast("RC gerada em Excel.");
+}
+function baixar(blob, nome){
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nome;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function exportarRCPdf(r){
+  const c = rcCampos(r), rod = rcRodape(r), v = k => esc(c[k] || "");
+  const linhas = Array.from({ length:RC_MAX }, (_,k) => r.itens[k]);
+  const lbl = (t, ob) => `<b>${t}</b>${ob ? `<br><small>(${ob})</small>` : ""}`;
+  const logo = new URL("logo-rc.png", location.href).href;
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${rcNum(r)} - ${esc(r.obraNome)}</title>
+<style>
+  @page{size:A4 portrait;margin:8mm}
+  *{box-sizing:border-box} body{margin:0;font-family:Calibri,"Segoe UI",Arial,sans-serif;color:#000;background:#fff}
+  .barra{padding:10px;background:#f3f5f9;border-bottom:1px solid #ccc;font:14px system-ui}
+  .barra button{padding:8px 14px;font-weight:700;cursor:pointer}
+  table{border-collapse:collapse;width:100%;table-layout:fixed}
+  td{border:1px solid #000;padding:2px 4px;font-size:10px;vertical-align:middle}
+  td small{font-size:8px;font-weight:400}
+  .h td{height:30px} .lab{background:#DDEBF7}
+  .tit{height:70px;text-align:center;font:26px "Times New Roman",serif;position:relative}
+  .tit img{position:absolute;left:6px;top:4px;height:62px}
+  .it td{height:19px} .it td.c{text-align:center}
+  .nota{font-size:9px;font-weight:700}
+  .rod td{height:34px;vertical-align:top;font-size:9px}
+  @media print{.barra{display:none}}
+</style></head><body>
+<div class="barra"><button onclick="print()">Salvar como PDF / imprimir</button> No destino, escolha <b>Salvar como PDF</b>.</div>
+<table>
+<colgroup><col style="width:9.5%"><col style="width:15.5%"><col style="width:8.5%"><col style="width:11%"><col style="width:9.5%"><col style="width:8%"><col style="width:9%"><col style="width:7.5%"><col style="width:11.5%"><col style="width:10%"></colgroup>
+<tr><td colspan="10" class="tit"><img src="${logo}" alt="LM">RC - REQUISIÇÃO DE COMPRA</td></tr>
+<tr class="h"><td class="lab" colspan="1"><b style="font-size:13px">NÚMERO DA RC</b></td><td colspan="2" style="font-size:13px"><b>${v("D6")}</b></td>
+  <td colspan="7" class="nota">* Material empregado no produto final: enviar no mínimo 5 dias úteis<br>** Material de uso e consumo: enviar no mínimo 3 dias úteis</td></tr>
+<tr class="h"><td class="lab">${lbl("DATA EMISSÃO:", "obrigatório")}</td><td>${v("D7")}</td><td class="lab" colspan="1">${lbl("DATA ENVIO A COMPRAS", "obrigatório")}</td><td>${v("F7")}</td>
+  <td class="lab" colspan="2">${lbl("HORÁRIO DE ENVIO:", "obrigatório")}</td><td colspan="4">${v("H7")}</td></tr>
+<tr class="h"><td class="lab">${lbl("SOLICITANTE:", "obrigatório")}</td><td>${v("D8")}</td><td class="lab">${lbl("FORNECEDOR:", "sugestão")}</td><td colspan="3">${v("F8")}</td>
+  <td class="lab" colspan="2"><b>PRAZO DE ENTREGA</b></td><td colspan="2">${v("I8")}</td></tr>
+<tr class="h"><td class="lab">${lbl("LOCAL DE ENTREGA:", "obrigatório")}</td><td colspan="2">${v("D9")}</td><td class="lab">${lbl("OBRA:", "obrigatório")}</td><td colspan="2">${v("G9")}</td>
+  <td class="lab" colspan="2"><b>RESPONSÁVEL DA OBRA</b></td><td colspan="2">${v("I9")}</td></tr>
+<tr class="h"><td class="lab">${lbl("EQUIPAMENTO:", "obrigatório")}</td><td>${v("D10")}</td><td class="lab">${lbl("CÓDIGO CADASTRO")}</td><td>${v("F10")}</td>
+  <td class="lab" colspan="2">${lbl("Próprio (P) ou Terceiro (T)")}</td><td>${v("H10")}</td><td class="lab">${lbl("NOME DO TERCEIRO")}</td><td colspan="2">${v("J10")}</td></tr>
+<tr class="h"><td class="lab">${lbl("MARCA", "obrigatório")}</td><td>${v("D11")}</td><td class="lab">${lbl("MODELO", "obrigatório")}</td><td>${v("F11")}</td>
+  <td class="lab" colspan="2">${lbl("SÉRIE", "obrigatório")}</td><td>${v("H11")}</td><td class="lab">${lbl("ANO", "obrigatório")}</td><td colspan="2">${v("J11")}</td></tr>
+<tr class="h"><td class="lab">${lbl("PLACA", "obrigatório")}</td><td>${v("D12")}</td><td class="lab">${lbl("Nº CHASSI", "obrigatório")}</td><td colspan="3">${v("F12")}</td>
+  <td class="lab" colspan="2"><b>ASSINATURA</b></td><td colspan="2">${v("I12")}</td></tr>
+<tr class="lab" style="height:34px;text-align:center"><td colspan="2"><b>CÓDIGO</b> <small>(obrigatório)</small></td><td colspan="5"><b>INSUMO / SERVIÇO</b> <small>(obrigatório)</small></td>
+  <td colspan="1"><b>UN. MEDIDA</b></td><td colspan="2"><b>QUANTIDADE</b> <small>(obrigatório)</small></td></tr>
+${linhas.map(i => `<tr class="it"><td colspan="2" class="c">${i ? esc(i.codigo || i.insumoCod || "") : ""}</td><td colspan="5">${i ? esc(i.descricao) + ((i.classe || (i.insumoCod ? "final" : "consumo")) === "final" ? " *" : " **") : ""}</td>
+  <td class="c">${i ? esc(i.un) : ""}</td><td colspan="2" class="c">${i ? fmtQ(i.qtd) : ""}</td></tr>`).join("")}
+<tr class="rod"><td colspan="10">${esc(rod.C42)}</td></tr>
+<tr class="rod"><td colspan="10">${esc(rod.C43)}</td></tr>
+</table>
+<script>window.addEventListener("load",()=>setTimeout(()=>print(),300))<\/script>
+</body></html>`;
+  const w = window.open("", "_blank");
+  if (!w){ toast("O navegador bloqueou a janela do PDF. Permita pop-ups para este site.", true); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
 function formNovaReq(){
   const c = S.ext.contrato;
   const itens = c?.itens || [];
@@ -2005,7 +2149,7 @@ function formNovaReq(){
     if (l.insumoCod && l.insumoCod !== "__fora"){
       const o = insumoOrcado(l.itemContrato, l.insumoCod);
       if (o){
-        const ped = jaPedido(l.itemContrato, l.insumoCod), saldo = r2((o.orcado - ped) * 1000) / 1000, q = num(l.qtd) || 0;
+        const ped = jaPedido(l.itemContrato, l.insumoCod, S.reqEdit), saldo = r2((o.orcado - ped) * 1000) / 1000, q = num(l.qtd) || 0;
         const passa = q > saldo + 0.0005;
         info = `<div class="orc ${passa ? "passa" : ""}">Orçado <b>${fmtQ(o.orcado)} ${esc(o.un)}</b> · já pedido <b>${fmtQ(ped)}</b> · saldo <b>${fmtQ(saldo)} ${esc(o.un)}</b>
           ${passa ? ` — <b>passa ${fmtQ(r2((q - saldo)*1000)/1000)} ${esc(o.un)} do orçado (fora do planejado)</b>` : ""}
@@ -2025,33 +2169,60 @@ function formNovaReq(){
       <input data-f="qtd" inputmode="decimal" placeholder="Qtd" value="${esc(l.qtd)}">
       <input data-f="un" list="unidades" placeholder="Un" value="${esc(l.un)}" ${!fora && l.insumoCod ? "readonly" : ""}>
       <button class="x" data-rqrm="${k}" title="Remover">✕</button>
+      <div class="rqx"><label>Código <input data-f="codigo" value="${esc(l.codigo || (l.insumoCod && l.insumoCod !== "__fora" ? l.insumoCod : ""))}" placeholder="código do insumo"></label>
+        <label>Classe <select data-f="classe"><option value="final" ${(l.classe || (fora ? "consumo" : "final")) === "final" ? "selected" : ""}>* Produto final</option>
+          <option value="consumo" ${(l.classe || (fora ? "consumo" : "final")) === "consumo" ? "selected" : ""}>** Uso e consumo</option></select></label></div>
       ${info}</div>`;
   };
   return `<div class="row" style="margin-bottom:10px"><button class="btn peq" id="reqVoltar">‹ Voltar</button></div>
-    <div class="card"><h3>Nova requisição de compra — ${esc(obraAtual().nome)}</h3>
+    <div class="card"><h3>${S.reqEdit ? "Editar " + esc(rcNum(S.ext.reqs.find(x => x.id === S.reqEdit) || { numero:0 })) : "Nova requisição de compra"} — ${esc(obraAtual().nome)}</h3>
+    <p class="nota" style="margin:0 0 10px">* Material empregado no produto final: enviar no mínimo 5 dias úteis · ** Material de uso e consumo: no mínimo 3 dias úteis</p>
     <div class="form">
-      <label>Solicitante<input id="rqSol" value="${esc(S.reqCab?.sol ?? S.nome ?? "")}"></label>
-      <label>Precisa na obra até<input type="date" id="rqNec" value="${S.reqCab?.nec || addDays(hoje(), 7)}"></label>
+      <label>Solicitante *<input id="rqSol" value="${esc(S.reqCab?.sol ?? S.nome ?? "")}"></label>
+      <label>Precisa na obra até *<input type="date" id="rqNec" value="${S.reqCab?.nec || addDays(hoje(), 7)}"></label>
+      <label>Local de entrega *<input id="rqLocal" value="${esc(S.reqCab?.local ?? ("CANTEIRO - " + obraAtual().nome))}"></label>
+      <label>Responsável da obra<input id="rqResp" value="${esc(S.reqCab?.resp ?? (obraAtual().engenheiro || ""))}"></label>
+      <label>Fornecedor (sugestão)<input id="rqForn" value="${esc(S.reqCab?.forn || "")}"></label>
+      <label>Prazo de entrega<input id="rqPrazo" placeholder="ex.: 3 dias, até 05/11" value="${esc(S.reqCab?.prazo || "")}"></label>
       <label class="chk"><input type="checkbox" id="rqUrg" ${S.reqCab?.urg ? "checked" : ""}> Urgente</label>
+      <label class="chk"><input type="checkbox" id="rqEqTem" ${S.reqCab?.eqTem ? "checked" : ""}> Para equipamento (peças / manutenção)</label>
     </div>
+    ${S.reqCab?.eqTem ? formEquip() : ""}
     <h3 style="margin-top:14px">Materiais</h3>
     ${itens.length ? `<p class="nota" style="margin:0 0 8px">Escolha o serviço e depois o insumo da composição: o sistema mostra o orçado e o saldo. O que não estiver na composição, ou passar do saldo, entra como <b>fora do planejado</b>.</p>`
                    : `<p class="nota" style="margin:0 0 8px">Esta obra ainda não tem contrato cadastrado: todos os materiais entram como fora do planejado.</p>`}
     <div id="rqLinhas">${S.reqLinhas.map(linha).join("")}</div>
-    <button class="btn peq" id="rqAddLin">+ Material</button>
+    <button class="btn peq" id="rqAddLin" ${S.reqLinhas.length >= RC_MAX ? "disabled" : ""}>+ Material</button> <small class="nota">${S.reqLinhas.length}/${RC_MAX} linhas (limite do modelo)</small>
     <label class="full" style="display:block;margin-top:12px">Observações (especificação, local de entrega, fornecedor sugerido...)<textarea id="rqObs">${esc(S.reqCab?.obs || "")}</textarea></label>
     <label class="full" id="rqJustBox" style="display:${S.reqLinhas.some(l => l.itemContrato === "__fora" || l.insumoCod === "__fora" || linhaPassa(l)) ? "block" : "none"};margin-top:12px">
       Justificativa do fora do planejado (obrigatória)<textarea id="rqJust">${esc(S.reqCab?.just || "")}</textarea></label>
   </div>`;
 }
+function formEquip(){
+  const e = S.reqCab?.eq || {};
+  if (!S.equipLM){ equipamentosLM().then(() => { if (S.reqSel === "nova"){ syncReqLinhas(); renderReqDetalhe(); } }); }
+  const lista = S.equipLM || [];
+  const campo = (k, t, ph) => `<label>${t}<input data-eq="${k}" value="${esc(e[k] || "")}" placeholder="${ph || ""}"></label>`;
+  return `<div class="eqbox"><div class="row" style="justify-content:space-between"><b>Equipamento</b>
+      <select id="rqEqSel"><option value="">${lista.length ? "Escolher do cadastro do Controle LM..." : (S.equipLM ? "Nenhum equipamento no Controle LM" : "Carregando equipamentos do Controle LM...")}</option>
+      ${lista.map(x => `<option value="${esc(x.id)}" ${e.idControle === x.id ? "selected" : ""}>${esc(eqRotulo(x))}</option>`).join("")}</select></div>
+    <div class="form" style="margin-top:8px">${campo("descricao","Equipamento","ex.: CAMINHÃO BASCULANTE")}${campo("codigo","Código cadastro")}
+      <label>Próprio (P) ou Terceiro (T)<select data-eq="pt"><option value="P" ${e.pt !== "T" ? "selected" : ""}>P - Próprio</option><option value="T" ${e.pt === "T" ? "selected" : ""}>T - Terceiro</option></select></label>
+      ${campo("terceiro","Nome do terceiro")}${campo("marca","Marca")}${campo("modelo","Modelo")}${campo("serie","Série")}${campo("ano","Ano")}${campo("placa","Placa")}${campo("chassi","Nº chassi")}</div></div>`;
+}
 function linhaPassa(l){
   if (!l.insumoCod || l.insumoCod === "__fora") return false;
   const o = insumoOrcado(l.itemContrato, l.insumoCod); if (!o) return false;
-  return (num(l.qtd) || 0) > o.orcado - jaPedido(l.itemContrato, l.insumoCod) + 0.0005;
+  return (num(l.qtd) || 0) > o.orcado - jaPedido(l.itemContrato, l.insumoCod, S.reqEdit) + 0.0005;
 }
 function syncReqLinhas(){
-  if ($("#rqSol")) S.reqCab = { sol:$("#rqSol").value, nec:$("#rqNec").value, urg:$("#rqUrg").checked, obs:$("#rqObs").value, just:$("#rqJust")?.value || "" };
-  S.reqLinhas = $$("#rqLinhas .rqlin2").map(d => { const o = { itemContrato:"", insumoCod:"", descricao:"", qtd:"", un:"" }; d.querySelectorAll("[data-f]").forEach(i => o[i.dataset.f] = i.value.trim()); return o; });
+  if ($("#rqSol")){
+    const eq = { ...(S.reqCab?.eq || {}) };
+    $$("#v-compras [data-eq]").forEach(i => eq[i.dataset.eq] = i.value.trim());
+    S.reqCab = { sol:$("#rqSol").value, nec:$("#rqNec").value, urg:$("#rqUrg").checked, obs:$("#rqObs").value, just:$("#rqJust")?.value || "",
+      local:$("#rqLocal").value, resp:$("#rqResp").value, forn:$("#rqForn").value, prazo:$("#rqPrazo").value, eqTem:$("#rqEqTem").checked, eq };
+  }
+  S.reqLinhas = $$("#rqLinhas .rqlin2").map(d => { const o = { itemContrato:"", insumoCod:"", descricao:"", qtd:"", un:"", codigo:"", classe:"" }; d.querySelectorAll("[data-f]").forEach(i => o[i.dataset.f] = i.value.trim()); return o; });
 }
 // ao trocar serviço/insumo: preenche a unidade e redesenha a linha
 document.addEventListener("change", ev => {
@@ -2061,7 +2232,9 @@ document.addEventListener("change", ev => {
   syncReqLinhas();
   const l = S.reqLinhas[+d.dataset.k];
   if (f === "itemContrato"){ l.insumoCod = ""; l.un = ""; l.descricao = ""; }
-  if (f === "insumoCod" && l.insumoCod && l.insumoCod !== "__fora"){ const o = insumoOrcado(l.itemContrato, l.insumoCod); if (o){ l.un = o.un; l.descricao = o.descricao; } }
+  if (f === "insumoCod" && l.insumoCod && l.insumoCod !== "__fora"){ const o = insumoOrcado(l.itemContrato, l.insumoCod); if (o){ l.un = o.un; l.descricao = o.descricao; l.codigo = o.codigo; l.classe = "final"; } }
+  if (f === "insumoCod" && l.insumoCod === "__fora"){ l.codigo = ""; l.classe = "consumo"; }
+  if (f === "itemContrato"){ l.codigo = ""; l.classe = l.itemContrato === "__fora" ? "consumo" : ""; }
   if (f === "insumoCod" && l.insumoCod === "__fora"){ l.un = ""; l.descricao = ""; }
   renderReqDetalhe();
 });
@@ -2072,7 +2245,7 @@ document.addEventListener("input", ev => {
   const d = ev.target.closest(".rqlin2"), l = S.reqLinhas[+d.dataset.k];
   const box = d.querySelector(".orc");
   if (box && l.insumoCod && l.insumoCod !== "__fora"){
-    const o = insumoOrcado(l.itemContrato, l.insumoCod), ped = jaPedido(l.itemContrato, l.insumoCod), saldo = r2((o.orcado - ped)*1000)/1000, q = num(l.qtd) || 0;
+    const o = insumoOrcado(l.itemContrato, l.insumoCod), ped = jaPedido(l.itemContrato, l.insumoCod, S.reqEdit), saldo = r2((o.orcado - ped)*1000)/1000, q = num(l.qtd) || 0;
     box.classList.toggle("passa", q > saldo + 0.0005);
     box.innerHTML = `Orçado <b>${fmtQ(o.orcado)} ${esc(o.un)}</b> · já pedido <b>${fmtQ(ped)}</b> · saldo <b>${fmtQ(saldo)} ${esc(o.un)}</b>` +
       (q > saldo + 0.0005 ? ` — <b>passa ${fmtQ(r2((q-saldo)*1000)/1000)} ${esc(o.un)} do orçado (fora do planejado)</b>` : "") +
@@ -2092,22 +2265,37 @@ async function salvarNovaReq(){
     if (outro && !l.descricao){ toast("Descreva o material fora da composição.", true); return; }
     if (q === null || q <= 0){ toast("Informe a quantidade de cada material.", true); return; }
     const o = !outro ? insumoOrcado(l.itemContrato, l.insumoCod) : null;
-    const saldo = o ? o.orcado - jaPedido(l.itemContrato, l.insumoCod) : 0;
+    const saldo = o ? o.orcado - jaPedido(l.itemContrato, l.insumoCod, S.reqEdit) : 0;
     itens.push({ descricao:(o ? o.descricao : l.descricao).toUpperCase(), qtd:q, un:normUn(o ? o.un : (l.un || "un")),
+      codigo: l.codigo || (o ? o.codigo : ""), classe: l.classe || (outro ? "consumo" : "final"),
       itemContrato: semServ ? null : l.itemContrato, insumoCod: outro ? null : l.insumoCod,
       orcado: o ? o.orcado : null, puRef: o ? o.pu : null, saldoAntes: o ? r2(saldo*1000)/1000 : null, excedente: o ? q > saldo + 0.0005 : false });
   }
   if (!itens.length){ toast("Inclua ao menos um material.", true); return; }
+  if (itens.length > RC_MAX){ toast(`O modelo de RC comporta ${RC_MAX} linhas. Divida em duas requisições.`, true); return; }
   const sol = $("#rqSol").value.trim(); if (!sol){ toast("Informe o solicitante.", true); return; }
+  if (!$("#rqLocal").value.trim()){ toast("Informe o local de entrega.", true); return; }
+  if (!$("#rqNec").value){ toast("Informe a data em que precisa na obra.", true); return; }
   const fora = itens.some(foraPlan), just = $("#rqJust")?.value.trim() || "";
   if (fora && !just){ toast("Explique por que há material fora do planejado.", true); $("#rqJust").focus(); return; }
-  const numero = Math.max(0, ...S.ext.reqs.map(r => r.numero || 0)) + 1;
-  const r = { id:uid(), obraId:S.obraId, obraNome:obraAtual().nome, numero, solicitante:sol, necessidade:$("#rqNec").value || null,
-    urgente:$("#rqUrg").checked, itens, obs:$("#rqObs").value.trim(), foraPlanejado:fora, justificativa: fora ? just : "",
-    status:"aberta", cotacoes:[], recebimentos:[], criadoEm:agoraIso(), historico:[{ data:hoje(), texto:"Requisição aberta" + (fora ? " (com material fora do planejado)" : ""), por:sol }] };
+  const cab = { solicitante:sol, necessidade:$("#rqNec").value || null, urgente:$("#rqUrg").checked, itens, obs:$("#rqObs").value.trim(),
+    foraPlanejado:fora, justificativa: fora ? just : "", localEntrega:$("#rqLocal").value.trim(), responsavelObra:$("#rqResp").value.trim(),
+    fornecedorSugerido:$("#rqForn").value.trim(), prazoEntrega:$("#rqPrazo").value.trim(), equipamento: S.reqCab?.eqTem ? (S.reqCab.eq || {}) : null };
   if (!S.nome){ S.nome = sol; localStorage.setItem("diarioLM_nome", sol); }
+  let r;
+  if (S.reqEdit){
+    const ant = S.ext.reqs.find(x => x.id === S.reqEdit);
+    r = { ...ant, ...cab, status: ant.status === "devolvida" ? "aberta" : ant.status, atualizadoEm:agoraIso(),
+          historico:[...(ant.historico||[]), { data:hoje(), texto: ant.status === "devolvida" ? "Corrigida após devolução" : "Editada", por:sol }] };
+  } else {
+    const numero = Math.max(0, ...S.ext.reqs.map(x => x.numero || 0)) + 1;
+    r = { id:uid(), obraId:S.obraId, obraNome:obraAtual().nome, numero, ...cab, status:"aberta", cotacoes:[], recebimentos:[], criadoEm:agoraIso(),
+          historico:[{ data:hoje(), texto:"Requisição emitida" + (fora ? " (com material fora do planejado)" : ""), por:sol }] };
+  }
   await store.set(COL_REQ, r.id, r);
-  S.reqLinhas = null; S.reqCab = null; await loadExtras(true); S.reqSel = r.id; renderCompras(); toast(`Requisição nº ${numero} aberta.`);
+  const editou = !!S.reqEdit;
+  S.reqLinhas = null; S.reqCab = null; S.reqEdit = null; await loadExtras(true); S.reqSel = r.id; renderCompras();
+  toast(editou ? `${rcNum(r)} atualizada.` : `${rcNum(r)} emitida. Valide e envie a Compras.`);
 }
 // planejamento de insumos da obra: orçado × requisitado × recebido, por serviço
 function cardInsumos(){
@@ -2142,20 +2330,31 @@ document.addEventListener("change", ev => { if (ev.target.id === "insSoPed"){ S.
 function reqAtual(){ return (S.reqTodas ? (S.todasReqs || []) : S.ext.reqs).find(r => r.id === S.reqSel) || S.ext.reqs.find(r => r.id === S.reqSel); }
 function renderReqDetalhe(){
   const el = $("#v-compras");
-  if (S.reqSel === "nova"){ el.innerHTML = formNovaReq(); setSavebar(`<button class="btn pri" id="rqSalvar">Abrir requisição</button>`); return; }
+  if (S.reqSel === "nova"){ el.innerHTML = formNovaReq(); setSavebar(`<button class="btn pri" id="rqSalvar">${S.reqEdit ? "Salvar alterações" : "Emitir requisição"}</button>`); return; }
   const r = reqAtual(); if (!r){ S.reqSel = null; renderCompras(); return; }
   const g = ehGeral(), fechada = reqFechada(r);
   let h = `<div class="row" style="margin-bottom:10px"><button class="btn peq" id="reqVoltar">‹ Voltar às requisições</button></div>
-    <div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Requisição nº ${r.numero} — ${esc(r.obraNome||"")}</h3><span>${r.urgente ? `<span class="chip" style="--c:#FF6B7A">urgente</span> ` : ""}${chipReq(r.status)}</span></div>
+    <div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">${rcNum(r)} — ${esc(r.obraNome||"")}</h3><span>${r.urgente ? `<span class="chip" style="--c:#FF6B7A">urgente</span> ` : ""}${chipReq(r.status)}</span></div>
     <div class="dados">
       <div><span>Solicitante</span><b>${esc(r.solicitante||"")}</b></div>
-      <div><span>Aberta em</span><b>${fmtBR((r.criadoEm||"").slice(0,10))}</b></div>
-      <div><span>Precisa até</span><b class="${reqAtrasada(r) ? "neg" : ""}">${r.necessidade ? fmtBR(r.necessidade) : "—"}</b></div>
+      <div><span>Emitida em</span><b>${fmtBR((r.criadoEm||"").slice(0,10))}</b></div>
+      <div><span>Precisa até</span><b class="${reqAtrasada(r) ? "neg" : ""}">${r.necessidade ? fmtBR(r.necessidade) : "—"}</b>${(() => { const a = antecedencia(r);
+        return r.necessidade ? `<small class="${a.ok ? "pos" : "neg"}">${a.tem} dias úteis ${r.envio ? "após o envio" : "a partir de hoje"} — mínimo ${a.exige}${a.ok ? "" : " (fora do prazo)"}</small>` : ""; })()}</div>
+      <div><span>Local de entrega</span><b>${esc(r.localEntrega || "—")}</b></div>
+      <div><span>Responsável da obra</span><b>${esc(r.responsavelObra || "—")}</b></div>
+      <div><span>Fornecedor sugerido</span><b>${esc(r.fornecedorSugerido || "—")}</b></div>
+      <div><span>Prazo de entrega</span><b>${esc(r.prazoEntrega || "—")}</b></div>
+      <div><span>Envio a Compras</span><b>${r.envio ? `${fmtBR(r.envio.data)} ${esc(r.envio.hora || "")}` : "não enviada"}</b>${r.envio ? `<small>validada por ${esc(r.envio.responsavel || "")}</small>` : ""}</div>
+      ${r.aprovacao ? `<div><span>Aprovação de Compras</span><b>${esc(r.aprovacao.por)}</b><small>${fmtBR(r.aprovacao.data)} ${esc(r.aprovacao.hora || "")}</small></div>` : ""}
+      ${r.equipamento ? `<div class="full"><span>Equipamento</span><b>${esc([r.equipamento.descricao, r.equipamento.marca, r.equipamento.modelo, r.equipamento.placa && "placa " + r.equipamento.placa,
+        r.equipamento.chassi && "chassi " + r.equipamento.chassi, r.equipamento.ano && "ano " + r.equipamento.ano, r.equipamento.codigo && "cód. " + r.equipamento.codigo,
+        r.equipamento.pt === "T" ? "terceiro: " + (r.equipamento.terceiro || "") : "próprio"].filter(Boolean).join(" · "))}</b></div>` : ""}
+      ${r.devolucao && r.status === "devolvida" ? `<div class="full"><span>Devolvida por Compras</span><b class="neg">${esc(r.devolucao.motivo)}</b><small>${esc(r.devolucao.por)} · ${fmtBR(r.devolucao.data)}</small></div>` : ""}
       ${r.obs ? `<div class="full"><span>Observações</span><b>${esc(r.obs)}</b></div>` : ""}
     </div>
     <div class="tbwrap" style="margin-top:10px"><table class="tb"><thead><tr><th class="l">Material</th><th>Qtd pedida</th><th>Un</th><th>Orçado / saldo antes</th><th>Ref. unit. / teto</th><th>Recebido</th><th>Falta</th><th class="l">Serviço do contrato</th></tr></thead><tbody>${
       r.itens.map((i,k) => { const rc = recebido(r,k), it = S.ext.contrato?.itens?.find(x => x.id === i.itemContrato);
-        return `<tr class="${foraPlan(i) ? "foraplan" : ""}"><td class="l">${esc(i.descricao)}${foraPlan(i) ? `<br><span class="chip" style="--c:#FFC14D">${i.excedente ? "acima do orçado" : "fora da composição"}</span>` : ""}</td>
+        return `<tr class="${foraPlan(i) ? "foraplan" : ""}"><td class="l">${esc(i.descricao)} <small>${(i.classe || (i.insumoCod ? "final" : "consumo")) === "final" ? "* produto final" : "** uso e consumo"}${i.codigo ? " · cód. " + esc(i.codigo) : ""}</small>${foraPlan(i) ? `<br><span class="chip" style="--c:#FFC14D">${i.excedente ? "acima do orçado" : "fora da composição"}</span>` : ""}</td>
           <td>${fmtQ(i.qtd)}</td><td>${esc(i.un)}</td><td>${i.orcado != null ? `${fmtQ(i.orcado)}<br><small>saldo ${fmtQ(i.saldoAntes)}</small>` : "—"}</td>
           <td>${puRef(i) != null ? `${fmtRU(puRef(i))}<br><small>${fmtR(r2(puRef(i)*i.qtd))}</small>` : `<small>sem ref.</small>`}</td>
           <td>${rc ? fmtQ(rc) : "—"}</td><td>${fmtQ(Math.max(0, r2((i.qtd-rc)*1000)/1000))}</td><td class="l"><small>${it ? esc(it.item + " — " + it.descricao.slice(0,60)) : "uso geral / sem serviço"}</small></td></tr>`; }).join("")
@@ -2163,9 +2362,22 @@ function renderReqDetalhe(){
     <div class="teto"><span>Valor de referência (teto para cotar e fechar o pedido)</span><b>${txtRef(refReq(r))}</b>
       <small>Preço dos insumos considerado no orçamento da obra (custo direto, sem BDI).</small></div>
     ${r.justificativa ? `<div class="info" style="margin-top:10px"><b>Fora do planejado — justificativa:</b> ${esc(r.justificativa)}</div>` : ""}</div>`;
-  // aprovação
-  if (r.status === "aberta" && g) h += `<div class="card"><h3>Aprovação</h3><div class="row"><button class="btn pri peq" id="rqAprovar">Aprovar</button>
-      <button class="btn peq" id="rqRecusar" style="color:var(--erro)">Recusar</button></div></div>`;
+  // emissão → validação do responsável e envio a Compras
+  if (["aberta","devolvida"].includes(r.status)){
+    const a = antecedencia(r);
+    h += `<div class="card"><h3>${r.status === "devolvida" ? "Corrigir e reenviar" : "Validar e enviar a Compras"}</h3>
+      <p class="nota" style="margin:0 0 10px">O responsável da obra confere a RC e envia ao setor de Compras. Data e horário do envio ficam registrados (campos obrigatórios do modelo).
+      ${!a.ok ? `<br><b class="neg">Atenção: faltam ${a.exige - a.tem} dia(s) útil(eis) para a antecedência mínima de ${a.exige} dias úteis.</b>` : ""}</p>
+      <div class="row"><label>Responsável que valida <input id="rqValPor" value="${esc(r.responsavelObra || S.nome || "")}"></label>
+        <button class="btn pri peq" id="rqEnviar">Validar e enviar a Compras</button><button class="btn peq" id="rqEditar">Editar</button></div></div>`;
+  }
+  // aprovação pelo responsável de Compras
+  if (r.status === "enviada" && g) h += `<div class="card"><h3>Aprovação — setor de Compras</h3>
+      <p class="nota" style="margin:0 0 10px">Valor de referência: <b>${txtRef(refReq(r))}</b>${reqFora(r) ? ' · <b class="neg">contém material fora do planejado</b>' : ""}</p>
+      <div class="row"><label>Aprovador <input id="rqAprovPor" value="${esc(S.nome || "")}"></label>
+        <button class="btn pri peq" id="rqAprovar">Aprovar</button>
+        <button class="btn peq" id="rqDevolver">Devolver para ajuste</button>
+        <button class="btn peq" id="rqRecusar" style="color:var(--erro)">Recusar</button></div></div>`;
   // cotações
   if (["aprovada","cotacao","pedido","parcial","entregue"].includes(r.status) && (g || (r.cotacoes||[]).length)){
     h += `<div class="card"><h3>Cotações</h3>`;
@@ -2207,8 +2419,9 @@ function renderReqDetalhe(){
       Object.entries(x.qtd).map(([k,q]) => `${fmtQ(q)} ${esc(r.itens[k]?.un||"")} de ${esc(r.itens[k]?.descricao||"")}`).join("; ")}${x.doc ? ` · NF/ticket ${esc(x.doc)}` : ""}${x.por ? ` <small>(${esc(x.por)})</small>` : ""}${x.obs ? `<br><small>${esc(x.obs)}</small>` : ""}</div>`).join("")}</div>`;
   if ((r.historico||[]).length) h += `<div class="card"><details><summary>Histórico</summary>${r.historico.map(x => `<div class="hist">${fmtBR(x.data)} — ${esc(x.texto)}${x.por ? ` <small>(${esc(x.por)})</small>` : ""}</div>`).join("")}</details></div>`;
   el.innerHTML = h;
-  const podeCancelar = !fechada && (g || r.status === "aberta");
-  setSavebar(podeCancelar ? `<button class="btn" id="rqCancelar" style="color:var(--erro)">Cancelar requisição</button>` : "");
+  const podeCancelar = !fechada && (g || ["aberta","devolvida"].includes(r.status));
+  setSavebar(`<button class="btn" id="rcExcel">RC em Excel</button><button class="btn" id="rcPdf">RC em PDF</button>` +
+    (podeCancelar ? `<button class="btn" id="rqCancelar" style="color:var(--erro)">Cancelar</button>` : ""));
 }
 async function gravaReq(r, texto, extra){
   r = { ...r, ...extra, atualizadoEm:agoraIso() };
@@ -2261,16 +2474,43 @@ document.addEventListener("click", async ev => {
       await store.del(COL_MED, m.id); await loadExtras(true); S.medSel = null; S.medDraft = null; renderMedicoes(); toast("Medição excluída."); return;
     }
     // compras
-    if (t.id === "reqNova"){ S.reqSel = "nova"; S.reqLinhas = null; renderCompras(); return; }
-    if (t.id === "reqVoltar"){ S.reqSel = null; S.pedidoForm = null; renderCompras(); return; }
+    if (t.id === "reqNova"){ S.reqSel = "nova"; S.reqLinhas = null; S.reqCab = null; S.reqEdit = null; renderCompras(); return; }
+    if (t.id === "reqVoltar"){ const ed = S.reqEdit; S.reqSel = ed || null; S.reqEdit = null; S.reqLinhas = null; S.reqCab = null; S.pedidoForm = null; renderCompras(); return; }
     if (t.dataset.reqabre){ S.reqSel = t.dataset.reqabre; S.pedidoForm = null; renderCompras(); return; }
     if (t.id === "reqTodas"){ S.reqTodas = !S.reqTodas; if (S.reqTodas) S.todasReqs = await store.list(COL_REQ); renderCompras(); return; }
-    if (t.id === "rqAddLin"){ syncReqLinhas(); S.reqLinhas.push({ descricao:"", qtd:"", un:"", itemContrato:"" }); renderReqDetalhe(); return; }
+    if (t.id === "rqAddLin"){ syncReqLinhas(); if (S.reqLinhas.length >= RC_MAX){ toast(`Limite de ${RC_MAX} linhas do modelo.`, true); return; } S.reqLinhas.push({ descricao:"", qtd:"", un:"", itemContrato:"" }); renderReqDetalhe(); return; }
     if (t.dataset.rqrm !== undefined){ syncReqLinhas(); S.reqLinhas.splice(+t.dataset.rqrm, 1); if (!S.reqLinhas.length) S.reqLinhas.push({ descricao:"", qtd:"", un:"", itemContrato:"" }); renderReqDetalhe(); return; }
     if (t.id === "rqSalvar"){ await salvarNovaReq(); return; }
     const r = S.reqSel && S.reqSel !== "nova" ? reqAtual() : null;
     if (!r) return;
-    if (t.id === "rqAprovar"){ await gravaReq(r, "Aprovada", { status:"aprovada" }); toast("Requisição aprovada."); return; }
+    if (t.id === "rcExcel"){ await exportarRCExcel(r); return; }
+    if (t.id === "rcPdf"){ exportarRCPdf(r); return; }
+    if (t.id === "rqEditar"){
+      S.reqEdit = r.id; S.reqSel = "nova";
+      S.reqCab = { sol:r.solicitante, nec:r.necessidade, urg:r.urgente, obs:r.obs, just:r.justificativa, local:r.localEntrega, resp:r.responsavelObra,
+                   forn:r.fornecedorSugerido, prazo:r.prazoEntrega, eqTem:!!r.equipamento, eq:r.equipamento || {} };
+      S.reqLinhas = r.itens.map(i => ({ itemContrato: i.itemContrato || "__fora", insumoCod: i.itemContrato ? (i.insumoCod || "__fora") : "", descricao:i.descricao,
+                   qtd: fmtQ(i.qtd), un:i.un, codigo:i.codigo || "", classe:i.classe || "" }));
+      renderCompras(); return;
+    }
+    if (t.id === "rqEnviar"){
+      const por = $("#rqValPor").value.trim(); if (!por){ toast("Informe quem valida a RC.", true); return; }
+      const a = antecedencia(r);
+      if (!a.ok && !confirm(`A RC está fora da antecedência mínima (${a.tem} de ${a.exige} dias úteis). Enviar assim mesmo?`)) return;
+      const hora = new Date().toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" });
+      await gravaReq(r, `Validada por ${por} e enviada a Compras às ${hora}`, { status:"enviada", envio:{ data:hoje(), hora, responsavel:por }, devolucao:null });
+      toast(`${rcNum(r)} enviada a Compras. Gere a RC em Excel/PDF para mandar ao setor.`); return;
+    }
+    if (t.id === "rqDevolver"){
+      const mot = prompt("O que precisa ser ajustado?"); if (!mot) return;
+      const por = $("#rqAprovPor")?.value.trim() || S.nome || "";
+      await gravaReq(r, "Devolvida para ajuste: " + mot, { status:"devolvida", devolucao:{ motivo:mot, por, data:hoje() } }); toast("RC devolvida à obra."); return;
+    }
+    if (t.id === "rqAprovar"){
+      const por = $("#rqAprovPor").value.trim(); if (!por){ toast("Informe o nome do aprovador.", true); return; }
+      const hora = new Date().toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" });
+      await gravaReq(r, `Aprovada por ${por} (Compras)`, { status:"aprovada", aprovacao:{ por, data:hoje(), hora } }); toast(`${rcNum(r)} aprovada.`); return;
+    }
     if (t.id === "rqRecusar"){ const mot = prompt("Motivo da recusa:"); if (mot === null) return; await gravaReq(r, "Recusada: " + mot, { status:"recusada" }); return; }
     if (t.id === "rqCancelar"){ const mot = prompt("Motivo do cancelamento:"); if (mot === null) return; await gravaReq(r, "Cancelada: " + mot, { status:"cancelada" }); return; }
     if (t.id === "ctAdd"){
@@ -2307,6 +2547,13 @@ Fechar assim mesmo?`)) return;
 });
 document.addEventListener("input", ev => { if (ev.target.classList?.contains("mq")) atualizaTotaisMed(); });
 document.addEventListener("change", ev => {
+  if (ev.target.id === "rqEqTem"){ syncReqLinhas(); renderReqDetalhe(); return; }
+  if (ev.target.id === "rqEqSel"){
+    syncReqLinhas();
+    const e = (S.equipLM || []).find(x => x.id === ev.target.value);
+    if (e) S.reqCab.eq = eqDoControle(e);
+    renderReqDetalhe(); return;
+  }
   if (ev.target.id === "reqFiltro"){ S.reqFiltro = ev.target.value; renderCompras(); }
 });
 
