@@ -174,6 +174,7 @@
   .rqlin input,.rqlin select{padding:8px;border:1px solid var(--borda);border-radius:8px;min-width:0}
   @media (max-width:700px){ .rqlin,.rqlin.cot{grid-template-columns:1fr 1fr} .rqlin [data-f=descricao],.rqlin select,#ctForn,#ctObs{grid-column:1/-1} }
   .ic{margin-top:8px}
+  .card.previa{border-left:4px solid var(--azul2)}
   table.hist input.hq{width:62px;padding:6px}
   table.hist input.hc{width:110px;padding:6px}
   table.hist select{padding:6px;border:1px solid var(--borda);border-radius:8px}
@@ -345,6 +346,70 @@
   .teto b{color:var(--lm-cyan);font-family:Orbitron,sans-serif}
 }
 </style>
+<style id="tema-claro">
+/* ==========================================================================
+   TEMA CLARO MODERNO — mesmo desenho do tema escuro, com a luz invertida.
+   Liga com html[data-tema="claro"] (botão ☀️/🌙 no topo; a escolha fica neste aparelho).
+   ========================================================================== */
+@media screen{
+  html[data-tema="claro"]{
+    color-scheme:light;
+    --lm-bg:#EEF3F8; --lm-bg2:#E3EBF4; --lm-glass:rgba(255,255,255,.88); --lm-glass2:#fff;
+    --lm-line:rgba(15,60,100,.12); --lm-line2:rgba(11,131,178,.32); --lm-cyan:#0A73A3; --lm-acc:#0B83B2; --lm-acc2:#0B83B2; --lm-violet:#6A4CF0;
+    --lm-text:#132232; --lm-muted:#5A6B7D; --lm-input:#fff; --lm-ok:#12924F; --lm-warn:#B86E00; --lm-err:#D13B4C;
+    --bg:#EEF3F8; --card:rgba(255,255,255,.88); --txt:#132232; --mut:#5A6B7D; --borda:rgba(15,60,100,.14);
+    --azulClaro:rgba(0,163,218,.10); --acc:rgba(11,131,178,.85); --ok:#12924F; --erro:#D13B4C; --ader:rgba(18,146,79,.14);
+  }
+  html[data-tema="claro"] body::before{background:
+      radial-gradient(600px 400px at 12% 6%,rgba(0,163,218,.13),transparent 70%),
+      radial-gradient(520px 420px at 92% 94%,rgba(106,76,240,.10),transparent 70%),
+      linear-gradient(180deg,#F5F8FC 0%,#E6EDF5 100%)}
+  html[data-tema="claro"] body::after{opacity:.55}
+  html[data-tema="claro"] ::-webkit-scrollbar-track{background:rgba(0,0,0,.04)}
+  html[data-tema="claro"] ::-webkit-scrollbar-thumb{background:rgba(11,131,178,.28)}
+  html[data-tema="claro"] .topo{background:rgba(255,255,255,.8);border-bottom-color:rgba(15,60,100,.1);box-shadow:0 2px 14px rgba(20,50,80,.06)}
+  html[data-tema="claro"] header h1{background:linear-gradient(90deg,#0B2A40,#0B83B2 60%,#6A4CF0);-webkit-background-clip:text;background-clip:text;color:transparent}
+  html[data-tema="claro"] header img{box-shadow:0 2px 10px rgba(11,131,178,.25)}
+  html[data-tema="claro"] nav button.on{text-shadow:none}
+  html[data-tema="claro"] main .card,html[data-tema="claro"] .pa,html[data-tema="claro"] .kpi div,html[data-tema="claro"] .tbwrap,html[data-tema="claro"] .pipe div{box-shadow:0 4px 18px rgba(20,50,80,.06)}
+  html[data-tema="claro"] .btn,html[data-tema="claro"] .daybar button,html[data-tema="claro"] .weekbar button,html[data-tema="claro"] .ntchips button,html[data-tema="claro"] .pa .ctl button{background:#fff}
+  html[data-tema="claro"] .btn:hover,html[data-tema="claro"] .daybar button:hover,html[data-tema="claro"] .weekbar button:hover{background:rgba(11,131,178,.08)}
+  html[data-tema="claro"] .btn.pri,html[data-tema="claro"] .btn.on{background:linear-gradient(90deg,#0B83B2,#6A4CF0);color:#fff;box-shadow:0 4px 14px rgba(11,131,178,.3)}
+  html[data-tema="claro"] .grp{background:linear-gradient(90deg,rgba(11,131,178,.88),rgba(106,76,240,.78));color:#fff}
+  html[data-tema="claro"] table.tb th{background:#F2F6FA;color:#0A73A3}
+  html[data-tema="claro"] table.tb tr.g td{background:rgba(11,131,178,.09);color:#132232}
+  html[data-tema="claro"] table.tb tfoot td{background:#F4F7FA}
+  html[data-tema="claro"] table.tb tbody tr:hover td{background:rgba(11,131,178,.04)}
+  html[data-tema="claro"] table.sem th{background:rgba(11,131,178,.08);color:#0A73A3}
+  html[data-tema="claro"] table.sem tr.g td{background:rgba(11,131,178,.75);color:#fff}
+  html[data-tema="claro"] table.sem th.fds{background:#EEF1F5}
+  html[data-tema="claro"] .chip{color:color-mix(in srgb,var(--c) 55%,#0B1A28);background:color-mix(in srgb,var(--c) 14%,#fff)}
+  html[data-tema="claro"] .pipe b{color:color-mix(in srgb,var(--c) 60%,#0B1A28);text-shadow:none}
+  html[data-tema="claro"] .pipe div{border-top-color:var(--c)}
+  html[data-tema="claro"] .trilha div i{box-shadow:none}
+  html[data-tema="claro"] .card.value.accent,html[data-tema="claro"] .kpi b{text-shadow:none}
+  html[data-tema="claro"] .rqlin2 .orc{background:rgba(18,146,79,.07)}
+  html[data-tema="claro"] .rqlin2 .orc.passa,html[data-tema="claro"] .rqlin2 .orc.passa b{background:rgba(255,179,0,.14);color:#8A5A00}
+  html[data-tema="claro"] .clima button:not(.sel){background:#fff!important}
+  html[data-tema="claro"] select option{background:#fff;color:#132232}
+  html[data-tema="claro"] #toast{background:#132232;color:#fff;border-color:transparent}
+  html[data-tema="claro"] #gate{background:radial-gradient(600px 400px at 20% 10%,rgba(0,163,218,.14),transparent 70%),radial-gradient(500px 400px at 85% 90%,rgba(106,76,240,.1),transparent 70%),#EEF3F8}
+  html[data-tema="claro"] #gate .box{background:rgba(255,255,255,.95);box-shadow:0 10px 40px rgba(20,50,80,.15)}
+  html[data-tema="claro"] .savebar{background:rgba(255,255,255,.85);box-shadow:0 -2px 14px rgba(20,50,80,.06)}
+  html[data-tema="claro"] table.hist input::placeholder{color:#9AA8B8}
+  html[data-tema="claro"] .ntchips button.on{background:#A6A6A6;color:#000}
+}
+#temaBtn{background:transparent;border:1px solid var(--lm-line2,#8fb0d9);color:var(--lm-text,#fff);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:13px;white-space:nowrap}
+@media print{#temaBtn{display:none}}
+</style>
+<script>
+// aplica o tema antes de desenhar a página (evita piscar)
+(function(){ try {
+  var p = localStorage.getItem("lmTema") || "escuro";
+  var c = p === "auto" ? (matchMedia("(prefers-color-scheme: light)").matches ? "claro" : "escuro") : p;
+  document.documentElement.dataset.tema = c; document.documentElement.dataset.temaPref = p;
+} catch(e){} })();
+</script>
 </head>
 <body>
 <div id="gate">
@@ -368,6 +433,7 @@
   <span class="sp"></span>
   <select id="obraSel" aria-label="Obra"></select>
   <span id="acessoLbl"></span>
+  <button id="temaBtn" type="button" title="Tema da tela: escuro, claro ou automático (segue o aparelho)"></button>
   <button id="sair" title="Trocar senha / sair">Sair</button>
 </header>
 <nav>
@@ -1679,6 +1745,7 @@ function renderMedicoes(){
     if (m.status === "faturada" && d.faturada && diasEntre(d.faturada, hoje()) > 30) alertas.push(`Medição ${m.numero} faturada há ${diasEntre(d.faturada, hoje())} dias e ainda não paga.`);
   }
   if (alertas.length) h += `<div class="info">${alertas.map(esc).join("<br>")}</div>`;
+  h += `<div class="card previa" id="previa"><h3>Prévia de faturamento</h3><div class="vazio">Calculando a produção lançada no Diário...</div></div>`;
   h += `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Medições — ${esc(obraAtual().nome)}</h3>
     ${ehGeral() ? `<button class="btn pri peq" id="medNova">+ Nova medição</button>` : ""}</div>`;
   if (!meds.length) h += `<div class="vazio">Nenhuma medição ainda.</div>`;
@@ -1700,6 +1767,7 @@ function renderMedicoes(){
   if (ehGeral()) h += `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Todas as obras — medições em andamento</h3>
       <button class="btn peq" id="medTodas">${S.todasMeds ? "Atualizar" : "Mostrar"}</button></div>${S.todasMeds ? tabelaTodasMeds() : ""}</div>`;
   el.innerHTML = h;
+  carregaPrevia().catch(e => { console.error(e); const b = $("#previa"); if (b) b.innerHTML = `<h3>Prévia de faturamento</h3><div class="vazio">Erro ao calcular: ${esc(e.message)}</div>`; });
 }
 function tabelaTodasMeds(){
   const pend = S.todasMeds.filter(m => m.status !== "paga").sort((a,b) => (a.obraNome||"").localeCompare(b.obraNome||"") || a.numero - b.numero);
@@ -1825,21 +1893,70 @@ async function mudaStatusMed(novoSt, data, texto){
   await store.set(COL_MED, m.id, m);
   await loadExtras(true); S.medDraft = null; renderMedicoes();
 }
-async function sugerirPeloDiario(){
-  const m = S.medDraft; syncMedDom();
-  const c = S.ext.contrato, soma = {};
-  let seg = mondayOf(m.inicio), semanas = 0, ligadas = 0;
-  while (seg <= m.fim){
+async function producaoPeriodo(ini, fim){
+  const soma = {}, semLig = {};
+  let seg = mondayOf(ini), semanas = 0, ligadas = 0;
+  while (seg <= fim){
     const w = await getWeek(S.obraId, seg); semanas++;
-    for (const a of Object.values(w.atividades || {})){
-      if (!a.itemContrato) continue; ligadas++;
+    const todas = [...Object.values(w.atividades || {}).map(a => ({ ...a, np:false })), ...Object.values(w.naoProg || {}).map(a => ({ ...a, np:true }))];
+    for (const a of todas){
+      let q = 0;
       for (let d = 0; d < 7; d++){
-        const dia = addDays(seg, d); if (dia < m.inicio || dia > m.fim) continue;
-        const r = val(a.real, d); if (r) soma[a.itemContrato] = (soma[a.itemContrato] || 0) + r;
+        const dia = addDays(seg, d); if (dia < ini || dia > fim) continue;
+        q += val(a.real, d) || 0;
       }
+      if (a.itemContrato){ ligadas++; if (q) soma[a.itemContrato] = (soma[a.itemContrato] || 0) + q; }
+      else if (q){ const k = (a.descricao || "?") + "|" + (a.unidade || ""); (semLig[k] ||= { descricao:a.descricao || "?", unidade:a.unidade || "", q:0, np:a.np }).q += q; }
     }
     seg = addDays(seg, 7);
   }
+  return { soma, semLig:Object.values(semLig), semanas, ligadas };
+}
+// prévia de faturamento: o que o Diário já registrou desde a última medição × preço do contrato
+function periodoPrevia(){
+  const c = S.ext.contrato, ult = S.ext.meds[S.ext.meds.length - 1];
+  const ini = ult ? addDays(ult.fim, 1) : (c.inicio || hoje().slice(0,8) + "01");
+  return { ini, fim: hoje(), numero: (ult?.numero || 0) + 1 };
+}
+async function carregaPrevia(){
+  const box = $("#previa"); if (!box) return;
+  const c = S.ext.contrato, per = periodoPrevia();
+  if (per.ini > per.fim){ box.innerHTML = `<h3>Prévia de faturamento</h3><div class="vazio">A última medição já cobre até hoje.</div>`; return; }
+  const pr = await producaoPeriodo(per.ini, per.fim);
+  if (!$("#previa")) return;
+  S.previa = { ...per, soma: pr.soma };
+  const linhas = c.itens.filter(i => pr.soma[i.id]).map(i => ({ i, q: r2(pr.soma[i.id]*1000)/1000, v: r2(pr.soma[i.id] * i.pu) })).sort((a,b) => b.v - a.v);
+  const tot = r2(linhas.reduce((s,x) => s + x.v, 0));
+  const vc = valorContrato(c), antV = r2(S.ext.meds.reduce((s,m) => s + valorMed(m,c), 0));
+  const prevMes = previstoAte(c, per.numero) !== null ? r2(previstoAte(c, per.numero) - previstoAte(c, per.numero - 1)) : null;
+  const diasMes = Math.max(1, diasEntre(per.ini, addDays(addMeses(per.ini, 1), -1)) + 1), diasCorr = diasEntre(per.ini, per.fim) + 1;
+  let h = `<div class="row" style="justify-content:space-between"><h3 style="margin:0">Prévia de faturamento — medição nº ${per.numero}</h3>
+      <small class="nota" style="margin:0">Produção lançada no Diário de ${fmtBR(per.ini)} a ${fmtBR(per.fim)} × preço do contrato (com BDI)</small></div>
+    <div class="kpi" style="margin-top:10px">
+      <div><b>${fmtR(tot)}</b><span>Produzido até hoje (${diasCorr} dia${diasCorr>1?"s":""})</span></div>
+      ${prevMes !== null ? `<div><b>${fmtR(prevMes)}</b><span>Previsto no cronograma para o mês ${per.numero}</span></div>
+      <div><b class="${tot < prevMes * Math.min(1, diasCorr/diasMes) - 0.01 ? "neg" : "pos"}">${fmtP(prevMes ? tot / prevMes : 0)}</b><span>do previsto do mês · esperado até hoje ≈ ${fmtP(Math.min(1, diasCorr/diasMes))}</span></div>` : ""}
+      <div><b>${fmtP((antV + tot) / vc)}</b><span>Contrato executado contando a prévia</span></div>
+    </div>`;
+  if (!pr.ligadas && !pr.semLig.length) h += `<div class="vazio">Nenhuma produção lançada no Diário neste período.</div>`;
+  else if (!linhas.length) h += `<div class="info">Há produção no Diário, mas nenhuma atividade está ligada a item do contrato. Ligue as atividades na aba <b>Programação da semana</b> (campo “Item do contrato”).</div>`;
+  if (linhas.length){
+    h += `<div class="tbwrap"><table class="tb"><thead><tr><th>Item</th><th class="l">Serviço</th><th>Un</th><th>Produzido no período</th><th>Preço unit.</th><th>Valor</th><th>Acumulado / contratado</th></tr></thead><tbody>${
+      linhas.map(({ i, q, v }) => { const at = acumAnterior(i.id, Infinity) + q, p = i.qtd ? at / i.qtd : 0;
+        return `<tr class="${p > 1.0001 ? "estouro" : ""}"><td>${esc(i.item)}</td><td class="l">${esc(i.descricao)}</td><td>${esc(i.un)}</td><td>${fmtQ(q)}</td><td>${fmtR(i.pu)}</td><td>${fmtR(v)}</td>
+          <td><div class="barra"><i style="width:${Math.min(100,p*100)}%" class="${p > 1.0001 ? "estouro" : ""}"></i></div><small>${fmtQ(r2(at*1000)/1000)} de ${fmtQ(i.qtd)} (${fmtP(p)})</small></td></tr>`; }).join("")
+    }</tbody><tfoot><tr><td colspan="5" class="l">TOTAL DA PRÉVIA</td><td>${fmtR(tot)}</td><td></td></tr></tfoot></table></div>`;
+  }
+  if (pr.semLig.length) h += `<div class="info" style="margin-top:10px"><b>Produção que não entra no faturamento</b> (atividade sem item do contrato):<br>${
+      pr.semLig.map(x => `${esc(x.descricao)} — ${fmtQ(r2(x.q*1000)/1000)} ${esc(x.unidade)}${x.np ? " <small>(não programada)</small>" : ""}`).join("<br>")}
+      <br><small>Ligue essas atividades ao item do contrato na Programação da semana para entrarem na prévia e na medição.</small></div>`;
+  if (linhas.length && ehGeral()) h += `<div class="row" style="margin-top:10px"><button class="btn pri peq" id="prevCriar">Criar medição nº ${per.numero} com esses valores</button></div>`;
+  box.innerHTML = h;
+}
+async function sugerirPeloDiario(){
+  const m = S.medDraft; syncMedDom();
+  const c = S.ext.contrato;
+  const { soma, semanas, ligadas } = await producaoPeriodo(m.inicio, m.fim);
   const ids = Object.keys(soma).filter(id => c.itens.find(i => i.id === id));
   if (!ids.length){
     toast(ligadas ? "Nenhuma produção lançada no período nas atividades ligadas ao contrato." : "Nenhuma atividade da Programação está ligada a item do contrato. Ligue na aba Programação da semana.", true); return;
@@ -2446,6 +2563,12 @@ document.addEventListener("click", async ev => {
     if (t.id === "cdCancelar"){ renderContrato(); return; }
     // medições
     if (t.id === "medNova"){ novaMedicao(); return; }
+    if (t.id === "prevCriar"){
+      const pv = S.previa; if (!pv) return;
+      novaMedicao();
+      for (const [id, q] of Object.entries(pv.soma)) if (S.ext.contrato.itens.find(i => i.id === id)) S.medDraft.qtd[id] = r2(q*1000)/1000;
+      renderMedicoes(); toast("Medição criada a partir da prévia. Confira o período e as quantidades antes de salvar."); return;
+    }
     if (t.dataset.medabre){ S.medSel = t.dataset.medabre; S.medDraft = null; renderMedicoes(); return; }
     if (t.id === "medVoltar"){ S.medSel = null; S.medDraft = null; renderMedicoes(); return; }
     if (t.id === "medSalvar"){ await salvarMedicao(); return; }
@@ -2751,6 +2874,16 @@ async function boot(){
   $("#gatePwd").addEventListener("keydown", e => { if (e.key === "Enter") tenta(); });
   $("#gatePwd").focus();
 }
+const TEMAS = { escuro:"🌙 Escuro", claro:"☀️ Claro", auto:"🖥️ Automático" };
+function aplicaTema(p){
+  const c = p === "auto" ? (matchMedia("(prefers-color-scheme: light)").matches ? "claro" : "escuro") : p;
+  document.documentElement.dataset.tema = c; document.documentElement.dataset.temaPref = p;
+  $("#temaBtn").textContent = TEMAS[p];
+  try { localStorage.setItem("lmTema", p); } catch(e){}
+}
+aplicaTema(document.documentElement.dataset.temaPref || "escuro");
+$("#temaBtn").onclick = () => { const ordem = ["escuro","claro","auto"], p = document.documentElement.dataset.temaPref || "escuro"; aplicaTema(ordem[(ordem.indexOf(p) + 1) % 3]); };
+matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => { if (document.documentElement.dataset.temaPref === "auto") aplicaTema("auto"); });
 $("#sair").onclick = () => { if (confirm("Sair e digitar outra senha?")){ localStorage.removeItem("diarioLM_senha"); location.reload(); } };
 localStorage.removeItem("diarioLM_ok");
 boot();
