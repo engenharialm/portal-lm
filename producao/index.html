@@ -908,6 +908,7 @@ async function salvarProg(){
     paths[`${b}.unidade`] = (a.unidade || "un").replace(/^m2$/i,"m²").replace(/^m3$/i,"m³");
     paths[`${b}.prog`] = a.prog;
     if (a.itemContrato !== undefined) paths[`${b}.itemContrato`] = a.itemContrato || null;
+    paths[`${b}.origem`] = "manual";
   });
   for (const id of Object.keys(S.week.atividades || {})) if (!lista.find(a => a.id === id)) paths[`atividades.${id}`] = DEL;
   paths.naoTrab = S.draftNT;
@@ -2939,7 +2940,7 @@ function renderPlanejamento(){
       ${p ? `<button class="btn peq" id="plMsp">Exportar para MS Project (.xml)</button>` : ""}
       ${ehGeral() ? `<label class="btn peq" style="cursor:pointer">Importar do MS Project<input type="file" id="plImp" accept=".xml" hidden></label>` : ""}
     </div>
-    <p class="nota">No MS Project: <b>Arquivo → Abrir → XML</b> para abrir o exportado; para devolver, <b>Arquivo → Salvar como → XML (*.xml)</b> e importe aqui. A prévia segue os meses do cronograma da proposta e dá a cada serviço um tempo proporcional às horas de equipamento/mão de obra das composições — ajuste no Project ou nas datas abaixo.</p></div>`;
+    <p class="nota">Ao <b>salvar</b>, a programação de cada semana da obra vai direto para o Diário (semanas já editadas à mão ou com realizado não são alteradas). No MS Project: <b>Arquivo → Abrir → XML</b> para abrir o exportado; para devolver, <b>Arquivo → Salvar como → XML (*.xml)</b> e importe aqui. A prévia segue os meses do cronograma da proposta e dá a cada serviço um tempo proporcional às horas de equipamento/mão de obra das composições — ajuste no Project ou nas datas abaixo.</p></div>`;
   if (!p){ el.innerHTML = h + `<div class="card vazio">Ainda não há programação. Informe o início e clique em “Gerar prévia de programação”.</div>`; setSavebar(""); return; }
   const fer = p.feriados || FERIADOS_PADRAO;
   const ini = p.tarefas.reduce((m,t) => t.inicio < m ? t.inicio : m, p.inicio), fim = p.tarefas.reduce((m,t) => t.fim > m ? t.fim : m, p.fim || p.inicio);
@@ -2983,10 +2984,38 @@ function syncPlano(){
   }
   S.planoDraft = p; return p;
 }
+// grava a programação semanal de todas as semanas do plano.
+// semana vazia → recebe o plano; semana futura que só tem atividades vindas do plano e sem realizado → atualiza;
+// semana salva à mão ou com realizado → não mexe.
+async function publicarNoDiario(p){
+  const fer = p.feriados || FERIADOS_PADRAO, hojeSeg = mondayOf(hoje());
+  const fim = p.tarefas.reduce((m,t) => t.fim > m ? t.fim : m, p.inicio);
+  let seg = mondayOf(proxUtil(p.inicio, fer)), novas = 0, atualizadas = 0, preservadas = 0;
+  while (seg <= fim){
+    const sug = programacaoDoPlano(seg, p) || [];
+    const id = weekId(S.obraId, seg), doc = await store.get(COL_SEMANAS, id);
+    const nt = {}; for (let d = 0; d < 7; d++){ const dia = addDays(seg, d); if (d === 6 || fer.includes(dia)) nt[d] = true; }
+    const ativ = {}; sug.forEach((a, i) => ativ[a.id] = { ordem:i, grupo:a.grupo, descricao:a.descricao, unidade:a.unidade, itemContrato:a.itemContrato, prog:a.prog, origem:"plano" });
+    const atuais = Object.values(doc?.atividades || {});
+    const temReal = atuais.some(a => Object.keys(a.real || {}).length) || Object.keys(doc?.naoProg || {}).length;
+    if (!atuais.length){
+      if (sug.length){ await store.set(COL_SEMANAS, id, { ...blankWeek(S.obraId, seg), ...(doc || {}), obraNome:obraAtual().nome, atividades:ativ, naoTrab:{ ...nt, ...(doc?.naoTrab || {}) } }); novas++; }
+    } else if (seg >= hojeSeg && !temReal && atuais.every(a => a.origem === "plano")){
+      const chave = l => JSON.stringify(l.map(a => [a.itemContrato, a.prog]).sort());
+      if (chave(atuais) === chave(Object.values(ativ))){ seg = addDays(seg, 7); continue; }   // nada mudou nesta semana
+      await store.set(COL_SEMANAS, id, { ...doc, atividades:ativ, naoTrab:{ ...(doc.naoTrab || {}), ...nt } }); atualizadas++;
+    } else preservadas++;
+    seg = addDays(seg, 7);
+  }
+  return { novas, atualizadas, preservadas };
+}
 async function salvarPlano(p, msg){
   const c = { ...S.ext.contrato, planejamento:{ ...p, atualizadoEm:agoraIso(), atualizadoPor:S.nome || "" } };
   await store.set(COL_CONTR, S.obraId, c);
-  S.planoDraft = null; await loadExtras(true); renderPlanejamento(); toast(msg || "Programação salva.");
+  S.planoDraft = null; await loadExtras(true);
+  const r = await publicarNoDiario(plano());
+  await loadWeek(); renderPlanejamento();
+  toast((msg || "Programação salva.") + ` Diário: ${r.novas || r.atualizadas ? "" : "sem mudanças"}${r.novas ? r.novas + " semana(s) programada(s)" : ""}${r.atualizadas ? `, ${r.atualizadas} atualizada(s)` : ""}${r.preservadas ? `, ${r.preservadas} mantida(s) (já editadas ou com realizado)` : ""}.`);
 }
 
 /* ------------------------------ MS Project (XML) ------------------------------ */
@@ -3061,8 +3090,8 @@ async function importarMSProject(arq){
 
 /* ---------------- programação da semana a partir do planejamento ---------------- */
 // quantidade por dia útil de cada serviço ativo na semana (quantidade contratada ÷ dias úteis da tarefa)
-function programacaoDoPlano(seg){
-  const c = S.ext.contrato, p = plano(); if (!p) return null;
+function programacaoDoPlano(seg, pp){
+  const c = S.ext.contrato, p = pp || plano(); if (!p) return null;
   const fer = p.feriados || FERIADOS_PADRAO, out = [];
   for (const t of p.tarefas.filter(x => x.tipo === "item")){
     const it = c.itens.find(i => i.id === t.id); if (!it) continue;
