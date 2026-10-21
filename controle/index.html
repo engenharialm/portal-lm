@@ -353,7 +353,7 @@
   }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style id="tema-lm">
 /* ==========================================================================
    TEMA LM — mesmo visual do Portal LM (escuro / futurista).
@@ -369,7 +369,7 @@
     --lm-ok:#2BFF9A; --lm-warn:#FFC14D; --lm-err:#FF6B7A;
   }
   html{background:var(--lm-bg)!important}
-  body{background:transparent!important;color:var(--lm-text);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+  body{background:transparent!important;color:var(--lm-text);font-family:Montserrat,"Segoe UI",system-ui,sans-serif}
   body::before{content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
     background:radial-gradient(600px 400px at 12% 6%,rgba(0,163,218,.2),transparent 70%),
                radial-gradient(520px 420px at 92% 94%,rgba(123,92,255,.16),transparent 70%),
@@ -387,7 +387,7 @@
 
   /* botão de voltar ao portal */
   .lm-portal{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;text-decoration:none;
-    font:600 12px/1 Orbitron,Inter,sans-serif;letter-spacing:.1em;color:var(--lm-cyan)!important;white-space:nowrap;
+    font:600 12px/1 Montserrat,sans-serif;letter-spacing:.1em;color:var(--lm-cyan)!important;white-space:nowrap;
     border:1px solid var(--lm-line2);background:rgba(61,242,255,.06);transition:.2s}
   .lm-portal:hover{background:rgba(61,242,255,.16);box-shadow:0 0 16px rgba(61,242,255,.35)}
   .lm-portal i{font-style:normal;transition:transform .2s}
@@ -404,12 +404,12 @@
     --accent:var(--lm-cyan); --accent-light:var(--lm-acc); --accent-dim:rgba(61,242,255,.12);
     --warning:var(--lm-warn); --danger:var(--lm-err); --info:#8FB8FF; --lime:#A3E635;
   }
-  body{font-family:Inter,"Segoe UI",system-ui,sans-serif}
+  body{font-family:Montserrat,"Segoe UI",system-ui,sans-serif}
 
   /* topo: barra escura desfocada, abas transparentes */
   header{background:rgba(5,11,20,.6);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--lm-line)}
   header .brand{margin-right:auto}
-  .brand h1{font-family:Orbitron,sans-serif;letter-spacing:.08em;font-size:16px;
+  .brand h1{font-family:Montserrat,sans-serif;letter-spacing:.08em;font-size:16px;
     background:linear-gradient(90deg,#fff,var(--lm-cyan) 60%,var(--lm-violet));-webkit-background-clip:text;background-clip:text;color:transparent}
   .brand span{color:var(--lm-muted)}
   .brand .logo{background:#fff;border-radius:10px;padding:3px;box-shadow:0 0 14px rgba(0,163,218,.4)}
@@ -428,14 +428,14 @@
     backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
   .card{border-radius:14px}
   .card .label{color:var(--lm-muted)}
-  .card .value{font-family:Orbitron,sans-serif;letter-spacing:.04em}
+  .card .value{font-family:Montserrat,sans-serif;letter-spacing:.04em}
   .card .value.accent,.obra-card-head .count-badge{color:var(--lm-cyan);text-shadow:0 0 12px rgba(61,242,255,.45)}
-  .section-title{font-family:Orbitron,sans-serif;letter-spacing:.06em;font-size:.86rem;color:var(--lm-cyan)}
-  .section-title small{font-family:Inter,sans-serif;letter-spacing:0;color:var(--lm-muted)}
-  .section-title .btn{font-family:Inter,"Segoe UI",system-ui,sans-serif;letter-spacing:0}
+  .section-title{font-family:Montserrat,sans-serif;letter-spacing:.06em;font-size:.86rem;color:var(--lm-cyan)}
+  .section-title small{font-family:Montserrat,sans-serif;letter-spacing:0;color:var(--lm-muted)}
+  .section-title .btn{font-family:Montserrat,"Segoe UI",system-ui,sans-serif;letter-spacing:0}
   #view-cruzamento select{padding:8px 10px}
   .kanban-col-head h3,.obra-card-head h3{color:var(--lm-cyan)}
-  .modal-head h2{font-family:Orbitron,sans-serif;letter-spacing:.05em;font-size:.95rem;color:var(--lm-cyan)}
+  .modal-head h2{font-family:Montserrat,sans-serif;letter-spacing:.05em;font-size:.95rem;color:var(--lm-cyan)}
   .bar-track{background:rgba(255,255,255,.08)}
   .bar-fill{background:linear-gradient(90deg,var(--lm-acc2),var(--lm-cyan));box-shadow:0 0 10px rgba(61,242,255,.4)}
   .kanban-card{background:rgba(255,255,255,.04);border-color:var(--lm-line)}
