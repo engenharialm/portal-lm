@@ -185,6 +185,10 @@
   .rqlin2 .orc.passa{background:rgba(255,179,0,.14);color:#8a5a00}
   @media (max-width:700px){ .rqlin2{grid-template-columns:1fr 1fr 36px} .rqlin2 select{grid-column:1/-1} .rqlin2 [data-f=descricao]{grid-row:auto} }
   table.tb tr.foraplan td{background:rgba(255,179,0,.08)}
+  .teto{display:flex;flex-direction:column;gap:2px;margin-top:10px;padding:10px 12px;border:1px solid var(--borda);border-left:4px solid var(--azul2);border-radius:10px}
+  .teto span{font-size:11px;text-transform:uppercase;color:var(--mut)}
+  .teto b{font-size:18px}
+  .teto small{color:var(--mut);font-size:11px}
   .hist{font-size:13px;padding:5px 0;border-bottom:1px solid #eef1f6}
   details summary{cursor:pointer;color:var(--azul);font-weight:600;font-size:13px}
   .btn.on{background:var(--azul2);color:#fff;border-color:var(--azul2)}
@@ -328,6 +332,8 @@
   .rqlin2 .orc.passa{background:rgba(255,193,77,.12);color:#FFD27A}
   .rqlin2 .orc.passa b{color:#FFD27A}
   table.tb tr.foraplan td{background:rgba(255,193,77,.07)}
+  .teto{border-color:var(--lm-line);border-left-color:var(--lm-cyan);background:rgba(61,242,255,.04)}
+  .teto b{color:var(--lm-cyan);font-family:Orbitron,sans-serif}
 }
 </style>
 </head>
@@ -1941,7 +1947,7 @@ function renderCompras(){
         <td class="l">${r.itens.slice(0,3).map(i => `${esc(i.descricao)} <small>(${fmtQ(i.qtd)} ${esc(i.un)})</small>`).join("<br>")}${r.itens.length > 3 ? `<br><small>+${r.itens.length-3} itens</small>` : ""}</td>
         <td>${fmtBR((r.criadoEm||"").slice(0,10))}</td><td>${r.necessidade ? fmtBR(r.necessidade) + (reqAtrasada(r) ? `<br><small class="neg">atrasada</small>` : "") : "—"}</td>
         <td>${esc(r.solicitante||"")}</td><td>${chipReq(r.status)}</td>
-        <td><small>${r.pedido ? esc(r.pedido.fornecedor) + "<br>" + fmtR(r.pedido.valor) : ""}</small></td>
+        <td><small>${r.pedido ? esc(r.pedido.fornecedor) + "<br>" + fmtR(r.pedido.valor) + (refReq(r).sem < refReq(r).total ? " " + difRef(r.pedido.valor, refReq(r).valor) : "") : (refReq(r).sem < refReq(r).total ? "ref. " + fmtR(refReq(r).valor) : "")}</small></td>
         <td><button class="btn peq" data-reqabre="${r.id}">Abrir</button></td></tr>`;
     }
     h += `</tbody></table></div>`;
@@ -1976,6 +1982,16 @@ function insumoOrcado(itemC, cod){
   return ins ? { ...ins, orcado: r2(ins.consumo * it.qtd * 1000) / 1000, item: it } : null;
 }
 const foraPlan = l => !l.insumoCod || l.excedente;
+// preço de referência (teto) de cada linha: o preço do insumo na composição do orçamento (custo direto, sem BDI)
+function puRef(l){ if (l.puRef != null) return l.puRef; const o = l.insumoCod ? insumoOrcado(l.itemContrato, l.insumoCod) : null; return o ? o.pu : null; }
+function refReq(r){
+  let v = 0, sem = 0;
+  for (const l of r.itens){ const p = puRef(l); if (p == null) sem++; else v += p * l.qtd; }
+  return { valor: r2(v), sem, total: r.itens.length };
+}
+const fmtRU = n => n == null ? "—" : Number(n).toLocaleString("pt-BR", { style:"currency", currency:"BRL", minimumFractionDigits:2, maximumFractionDigits: Math.abs(n) < 10 ? 4 : 2 });
+const txtRef = rf => rf.sem === rf.total ? "sem referência (material fora da composição)" : fmtR(rf.valor) + (rf.sem ? ` + ${rf.sem} material(is) sem referência` : "");
+const difRef = (v, ref) => { if (!ref) return ""; const d = v / ref - 1; return `<span class="${d > 0.0005 ? "neg" : "pos"}">${d > 0 ? "+" : ""}${(d*100).toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span>`; };
 const reqFora = r => r.itens.some(foraPlan);
 
 function formNovaReq(){
@@ -1992,7 +2008,8 @@ function formNovaReq(){
         const ped = jaPedido(l.itemContrato, l.insumoCod), saldo = r2((o.orcado - ped) * 1000) / 1000, q = num(l.qtd) || 0;
         const passa = q > saldo + 0.0005;
         info = `<div class="orc ${passa ? "passa" : ""}">Orçado <b>${fmtQ(o.orcado)} ${esc(o.un)}</b> · já pedido <b>${fmtQ(ped)}</b> · saldo <b>${fmtQ(saldo)} ${esc(o.un)}</b>
-          ${passa ? ` — <b>passa ${fmtQ(r2((q - saldo)*1000)/1000)} ${esc(o.un)} do orçado (fora do planejado)</b>` : ""}</div>`;
+          ${passa ? ` — <b>passa ${fmtQ(r2((q - saldo)*1000)/1000)} ${esc(o.un)} do orçado (fora do planejado)</b>` : ""}
+          <br>Preço de referência <b>${fmtRU(o.pu)}/${esc(o.un)}</b>${q ? ` · teto desta linha <b>${fmtR(r2(q*o.pu))}</b>` : ""}</div>`;
       }
     } else if (l.insumoCod === "__fora" || (l.itemContrato === "__fora")){
       info = `<div class="orc passa">Material fora da composição: será marcado como <b>fora do planejado</b> e precisa de justificativa.</div>`;
@@ -2058,7 +2075,8 @@ document.addEventListener("input", ev => {
     const o = insumoOrcado(l.itemContrato, l.insumoCod), ped = jaPedido(l.itemContrato, l.insumoCod), saldo = r2((o.orcado - ped)*1000)/1000, q = num(l.qtd) || 0;
     box.classList.toggle("passa", q > saldo + 0.0005);
     box.innerHTML = `Orçado <b>${fmtQ(o.orcado)} ${esc(o.un)}</b> · já pedido <b>${fmtQ(ped)}</b> · saldo <b>${fmtQ(saldo)} ${esc(o.un)}</b>` +
-      (q > saldo + 0.0005 ? ` — <b>passa ${fmtQ(r2((q-saldo)*1000)/1000)} ${esc(o.un)} do orçado (fora do planejado)</b>` : "");
+      (q > saldo + 0.0005 ? ` — <b>passa ${fmtQ(r2((q-saldo)*1000)/1000)} ${esc(o.un)} do orçado (fora do planejado)</b>` : "") +
+      `<br>Preço de referência <b>${fmtRU(o.pu)}/${esc(o.un)}</b>${q ? ` · teto desta linha <b>${fmtR(r2(q*o.pu))}</b>` : ""}`;
   }
   $("#rqJustBox").style.display = S.reqLinhas.some(x => x.itemContrato === "__fora" || x.insumoCod === "__fora" || linhaPassa(x)) ? "block" : "none";
 });
@@ -2077,7 +2095,7 @@ async function salvarNovaReq(){
     const saldo = o ? o.orcado - jaPedido(l.itemContrato, l.insumoCod) : 0;
     itens.push({ descricao:(o ? o.descricao : l.descricao).toUpperCase(), qtd:q, un:normUn(o ? o.un : (l.un || "un")),
       itemContrato: semServ ? null : l.itemContrato, insumoCod: outro ? null : l.insumoCod,
-      orcado: o ? o.orcado : null, saldoAntes: o ? r2(saldo*1000)/1000 : null, excedente: o ? q > saldo + 0.0005 : false });
+      orcado: o ? o.orcado : null, puRef: o ? o.pu : null, saldoAntes: o ? r2(saldo*1000)/1000 : null, excedente: o ? q > saldo + 0.0005 : false });
   }
   if (!itens.length){ toast("Inclua ao menos um material.", true); return; }
   const sol = $("#rqSol").value.trim(); if (!sol){ toast("Informe o solicitante.", true); return; }
@@ -2135,12 +2153,15 @@ function renderReqDetalhe(){
       <div><span>Precisa até</span><b class="${reqAtrasada(r) ? "neg" : ""}">${r.necessidade ? fmtBR(r.necessidade) : "—"}</b></div>
       ${r.obs ? `<div class="full"><span>Observações</span><b>${esc(r.obs)}</b></div>` : ""}
     </div>
-    <div class="tbwrap" style="margin-top:10px"><table class="tb"><thead><tr><th class="l">Material</th><th>Qtd pedida</th><th>Un</th><th>Orçado / saldo antes</th><th>Recebido</th><th>Falta</th><th class="l">Serviço do contrato</th></tr></thead><tbody>${
+    <div class="tbwrap" style="margin-top:10px"><table class="tb"><thead><tr><th class="l">Material</th><th>Qtd pedida</th><th>Un</th><th>Orçado / saldo antes</th><th>Ref. unit. / teto</th><th>Recebido</th><th>Falta</th><th class="l">Serviço do contrato</th></tr></thead><tbody>${
       r.itens.map((i,k) => { const rc = recebido(r,k), it = S.ext.contrato?.itens?.find(x => x.id === i.itemContrato);
         return `<tr class="${foraPlan(i) ? "foraplan" : ""}"><td class="l">${esc(i.descricao)}${foraPlan(i) ? `<br><span class="chip" style="--c:#FFC14D">${i.excedente ? "acima do orçado" : "fora da composição"}</span>` : ""}</td>
           <td>${fmtQ(i.qtd)}</td><td>${esc(i.un)}</td><td>${i.orcado != null ? `${fmtQ(i.orcado)}<br><small>saldo ${fmtQ(i.saldoAntes)}</small>` : "—"}</td>
+          <td>${puRef(i) != null ? `${fmtRU(puRef(i))}<br><small>${fmtR(r2(puRef(i)*i.qtd))}</small>` : `<small>sem ref.</small>`}</td>
           <td>${rc ? fmtQ(rc) : "—"}</td><td>${fmtQ(Math.max(0, r2((i.qtd-rc)*1000)/1000))}</td><td class="l"><small>${it ? esc(it.item + " — " + it.descricao.slice(0,60)) : "uso geral / sem serviço"}</small></td></tr>`; }).join("")
     }</tbody></table></div>
+    <div class="teto"><span>Valor de referência (teto para cotar e fechar o pedido)</span><b>${txtRef(refReq(r))}</b>
+      <small>Preço dos insumos considerado no orçamento da obra (custo direto, sem BDI).</small></div>
     ${r.justificativa ? `<div class="info" style="margin-top:10px"><b>Fora do planejado — justificativa:</b> ${esc(r.justificativa)}</div>` : ""}</div>`;
   // aprovação
   if (r.status === "aberta" && g) h += `<div class="card"><h3>Aprovação</h3><div class="row"><button class="btn pri peq" id="rqAprovar">Aprovar</button>
@@ -2150,8 +2171,8 @@ function renderReqDetalhe(){
     h += `<div class="card"><h3>Cotações</h3>`;
     if ((r.cotacoes||[]).length){
       const menor = Math.min(...r.cotacoes.map(x => x.valor));
-      h += `<div class="tbwrap"><table class="tb"><thead><tr><th class="l">Fornecedor</th><th>Valor total</th><th>Prazo de entrega</th><th class="l">Condição / obs.</th><th></th></tr></thead><tbody>${
-        r.cotacoes.map((x,k) => `<tr class="${x.valor === menor ? "melhor" : ""}"><td class="l">${esc(x.fornecedor)}${x.valor === menor && r.cotacoes.length > 1 ? ` <span class="chip" style="--c:#2BFF9A">menor</span>` : ""}</td><td>${fmtR(x.valor)}</td><td>${esc(x.prazo||"")}</td><td class="l">${esc(x.obs||"")}</td>
+      h += `<div class="tbwrap"><table class="tb"><thead><tr><th class="l">Fornecedor</th><th>Valor total</th><th>vs referência</th><th>Prazo de entrega</th><th class="l">Condição / obs.</th><th></th></tr></thead><tbody>${
+        r.cotacoes.map((x,k) => `<tr class="${x.valor === menor ? "melhor" : ""}"><td class="l">${esc(x.fornecedor)}${x.valor === menor && r.cotacoes.length > 1 ? ` <span class="chip" style="--c:#2BFF9A">menor</span>` : ""}</td><td>${fmtR(x.valor)}</td><td>${refReq(r).sem < refReq(r).total ? difRef(x.valor, refReq(r).valor) + (refReq(r).sem ? "<br><small>ref. parcial</small>" : "") : "—"}</td><td>${esc(x.prazo||"")}</td><td class="l">${esc(x.obs||"")}</td>
           <td>${g && ["aprovada","cotacao"].includes(r.status) ? `<button class="btn peq" data-cotescolhe="${k}">Fechar pedido</button> <button class="x" data-cotrm="${k}">✕</button>` : ""}</td></tr>`).join("")}</tbody></table></div>`;
     }
     if (g && ["aprovada","cotacao"].includes(r.status)) h += `<div class="rqlin cot" style="margin-top:10px"><input id="ctForn" placeholder="Fornecedor"><input id="ctValor" inputmode="decimal" placeholder="Valor total R$">
@@ -2165,7 +2186,7 @@ function renderReqDetalhe(){
       <div><span>Fornecedor</span><b>${esc(r.pedido.fornecedor)}</b></div><div><span>Valor</span><b>${fmtR(r.pedido.valor)}</b></div>
       <div><span>Nº do pedido</span><b>${esc(r.pedido.numero||"—")}</b></div><div><span>Emitido em</span><b>${fmtBR(r.pedido.data)}</b></div>
       <div><span>Prazo de entrega</span><b>${esc(r.pedido.prazo||"—")}</b></div><div><span>Condição</span><b>${esc(r.pedido.condicao||"—")}</b></div></div></div>`;
-  if (S.pedidoForm && g) h += `<div class="card"><h3>Fechar pedido</h3><div class="form">
+  if (S.pedidoForm && g) h += `<div class="card"><h3>Fechar pedido</h3><p class="nota" style="margin:0 0 10px">Valor de referência: <b>${txtRef(refReq(r))}</b></p><div class="form">
       <label>Fornecedor<input id="pdForn" value="${esc(S.pedidoForm.fornecedor||"")}"></label>
       <label>Valor total (R$)<input id="pdValor" inputmode="decimal" value="${S.pedidoForm.valor ? fmtNum(S.pedidoForm.valor) : ""}"></label>
       <label>Nº do pedido / OC<input id="pdNum"></label>
@@ -2265,7 +2286,10 @@ document.addEventListener("click", async ev => {
     if (t.id === "pdSalvar"){
       const forn = $("#pdForn").value.trim(), v = num($("#pdValor").value);
       if (!forn || v === null){ toast("Informe fornecedor e valor do pedido.", true); return; }
-      const pedido = { fornecedor:forn, valor:v, numero:$("#pdNum").value.trim(), prazo:$("#pdPrazo").value.trim(), condicao:$("#pdCond").value.trim(), data:hoje() };
+      const rf = refReq(r);
+      if (rf.sem < rf.total && v > rf.valor + 0.005 && !confirm(`O pedido (${fmtR(v)}) passa do valor de referência (${fmtR(rf.valor)}) em ${fmtR(r2(v - rf.valor))}${rf.sem ? " — atenção: a referência não inclui " + rf.sem + " material(is) fora da composição" : ""}.
+Fechar assim mesmo?`)) return;
+      const pedido = { fornecedor:forn, valor:v, referencia: rf.sem < rf.total ? rf.valor : null, numero:$("#pdNum").value.trim(), prazo:$("#pdPrazo").value.trim(), condicao:$("#pdCond").value.trim(), data:hoje() };
       S.pedidoForm = null; await gravaReq(r, `Pedido emitido: ${forn} ${fmtR(v)}`, { pedido, status:"pedido" }); toast("Pedido emitido."); return;
     }
     if (t.id === "rcSalvar"){
