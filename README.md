@@ -7,3 +7,8 @@ Página inicial que reúne os sistemas da LM Construtora: **Licitações**, **Pr
 - Atalhos: teclas 1, 2 e 3 abrem cada sistema.
 
 **Status:** em teste, ainda não aprovado.
+
+## Cópias de teste com o visual novo
+As pastas `licitacoes/`, `producao/` e `controle/` são cópias dos sistemas oficiais com o visual do portal e o botão "← Portal".
+Elas usam **os mesmos dados da equipe** (o que for salvo nelas vale de verdade). Os sites oficiais não foram alterados.
+Na aprovação: aplicar o visual nos repositórios oficiais, apontar os cartões do portal de volta para os endereços oficiais e apagar estas pastas.

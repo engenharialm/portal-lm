@@ -176,6 +176,10 @@
    Para proteger um sistema com senha, troque  senha: null  por  senha: "suaSenha".
    Atenção: como o portal não tem servidor, é uma trava para uso casual —
    quem tiver o link direto do sistema ainda entra por ele.
+   VERSÃO DE TESTE: os cartões abrem as cópias com o visual novo que ficam
+   nas pastas licitacoes/, producao/ e controle/ deste repositório (mesmos dados
+   da equipe). Na aprovação, voltar para os endereços oficiais:
+   https://engenharialm.github.io/licitacoes/ · /diario-producao-lm/ · /controle-lm/
    ========================================================================= */
 const ICONES = {
   licitacoes: '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>',
@@ -188,21 +192,21 @@ const SISTEMAS = [
     nome: "Licitações",
     icone: "licitacoes",
     descricao: "Licitações do PNCP, interesse SIM/NÃO, atestados, garantias e resultados.",
-    url: "https://engenharialm.github.io/licitacoes/",
+    url: "licitacoes/",
     senha: null
   },
   {
     nome: "Produção",
     icone: "producao",
     descricao: "Programação semanal e diário de produção das obras, com exportação para Excel.",
-    url: "https://engenharialm.github.io/diario-producao-lm/",
+    url: "producao/",
     senha: null
   },
   {
     nome: "Controle",
     icone: "controle",
     descricao: "Consolidado semanal de mão de obra e equipamentos por obra.",
-    url: "https://engenharialm.github.io/controle-lm/",
+    url: "controle/",
     senha: null
   }
 ];
