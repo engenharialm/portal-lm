@@ -174,6 +174,10 @@
   .rqlin input,.rqlin select{padding:8px;border:1px solid var(--borda);border-radius:8px;min-width:0}
   @media (max-width:700px){ .rqlin,.rqlin.cot{grid-template-columns:1fr 1fr} .rqlin [data-f=descricao],.rqlin select,#ctForn,#ctObs{grid-column:1/-1} }
   .ic{margin-top:8px}
+  .rdogrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px}
+  @media (max-width:800px){ .rdogrid{grid-template-columns:1fr} }
+  table.tb.rdot td,table.tb.rdot th{padding:2px 6px;font-size:12px}
+  .rdot input{width:58px!important;height:26px;text-align:center;padding:2px 4px!important;font-size:13px!important;border:1px solid var(--borda);border-radius:6px}
   tr.memrow > td{background:rgba(0,112,192,.04);padding:10px}
   .mem .memt{margin-top:0;width:auto;min-width:100%}
   .memwrap{overflow-x:auto;margin-top:8px;max-width:calc(100vw - 80px);position:sticky;left:0}
@@ -359,7 +363,7 @@
   .dados b{color:var(--lm-text)}
   .rqlin2{border-bottom-color:var(--lm-line)}
   tr.memrow > td{background:rgba(61,242,255,.04)!important}
-  .mem .memt input,.mem select,.foto select,.foto input{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
+  .rdot input,#rdoChuva,#rdoObsFisc,.mem .memt input,.mem select,.foto select,.foto input{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
   .foto{border-color:var(--lm-line);background:rgba(255,255,255,.02)}
   table.gantt input[type=date]{background:var(--lm-input)!important;color:var(--lm-text)!important;border:1px solid var(--lm-line2)!important}
   .regua span{color:var(--lm-muted);border-left-color:var(--lm-line)}
@@ -775,6 +779,7 @@ function renderDiario(){
   h += `</div></div>`;
 
   h += `<div class="card"><h3>Observações do dia</h3><textarea id="obsInp" placeholder="Ocorrências, equipamento parado, falta de material, interferências...">${esc((w.obs||{})[ds] || "")}</textarea></div>`;
+  h += cardRDO(w, ds);
   h += cardFotosDia();
   el.innerHTML = h;
   setSavebar(`<button class="btn pri" id="salvarDia">Salvar diário de ${fmtCurto(S.dia)}</button>`);
@@ -827,6 +832,11 @@ async function salvarDiario(){
       prog: pq === null ? {} : { [ds]: pq }, real: q === null ? {} : { [ds]: q } };
   }
   if (erro){ toast("Há um valor que não é número. Use apenas números (ex.: 12,5).", true); return; }
+  if ($("#rdoCard")){
+    const r = lerRDO();
+    paths[`efetivo.${ds}`] = r.ef; paths[`equip.${ds}`] = r.eq;
+    paths[`chuva.${ds}`] = r.chuva === null ? DEL : r.chuva; paths[`obsFisc.${ds}`] = r.obsFisc ? r.obsFisc : DEL;
+  }
   paths[`clima.${ds}`] = S.clima;
   const obs = $("#obsInp").value.trim();
   paths[`obs.${ds}`] = obs ? obs : DEL;
@@ -1910,6 +1920,7 @@ function renderMedEditor(){
   const bts = [];
   if (!travada) bts.push(`<button class="btn pri" id="medSalvar">${m.id ? "Salvar medição" : "Criar medição"}</button>`);
   if (m.id) bts.push(`<button class="btn" id="medExcel" title="Boletim de medição e memória de cálculo no modelo LM">Boletim + memória (Excel)</button>`);
+  if (m.id) bts.push(`<button class="btn" id="rdoPeriodo" title="Um RDO por dia com diário salvo no período, no modelo LM">RDOs do período (Excel)</button>`);
   if (m.id && ehGeral() && m.status === "rascunho") bts.push(`<button class="btn" id="medExcluir" style="color:var(--erro)">Excluir</button>`);
   setSavebar(bts.join(""));
 }
@@ -3843,6 +3854,235 @@ document.addEventListener("change", async ev => {
     }
     const div = ev.target.closest?.(".foto[data-fid]");
     if (div && ev.target.dataset.ff){ await salvaCampoFoto(div); if (ev.target.dataset.ff === "data"){ S.fotosMed.lista.sort((a,b) => (a.data || "").localeCompare(b.data || "")); } }
+  } catch(e){ console.error(e); toast("Erro: " + e.message, true); }
+});
+
+/* ======================================================================
+   RDO — Relatório Diário de Obra no modelo LM
+   No Diário do dia: efetivo (presentes/ausentes por função), equipamentos, chuva (mm) e
+   observações da fiscalização, guardados na semana: efetivo.{d}, equip.{d}, chuva.{d}, obsFisc.{d}
+   ====================================================================== */
+const FUNCOES_RDO = ["AJUDANTE","FEITOR","MOTORISTA","ENCARREGADO","OPERADOR DE MOTONIVELADORA","MOTORISTA CAMINHÃO PIPA","VIGIA",
+  "OPERADOR DE FRESADORA","OPERADOR DE RETROESCAVADEIRA","OPERADOR DE VIBROACABADORA","OPERADOR CAMINHÃO ESPARGIDOR","GREIDISTA","OPERADOR DE ROLO","OPERADOR BOB CAT",
+  "ENGENHEIRO(A) CIVIL","PEDREIRO","ENGENHEIRO AGRIMENSOR","TOPÓGRAFO","OPERADOR DE ROLO - CBUQ","APONTADOR"];
+const EQUIP_RDO = ["RETROESCAVADEIRA","MOTONIVELADORA","CAMINHÃO PIPA","TRATOR AGRÍCOLA","PLACA VIBRATÓRIA","ROLO MISTO","BOB CAT","VIBROACABADORA",
+  "CAMINHÃO BASCULANTE","CAMINHÃO ESPARGIDOR","ROLO CHAPA","SAVEIRO","CARRO UTILITÁRIO","ROLO DE PNEU"];
+S.rdoExtra = { mo:[], eq:[] };
+
+function cardRDO(w, ds){
+  const ef = (w.efetivo || {})[ds] || {}, eq = (w.equip || {})[ds] || {};
+  const nomesMO = [...new Set([...FUNCOES_RDO, ...Object.keys(ef), ...S.rdoExtra.mo])];
+  const nomesEQ = [...new Set([...EQUIP_RDO, ...Object.keys(eq), ...S.rdoExtra.eq])];
+  const totP = Object.values(ef).reduce((s,x) => s + (Number(x.p) || 0), 0), totA = Object.values(ef).reduce((s,x) => s + (Number(x.a) || 0), 0);
+  const totE = Object.values(eq).reduce((s,x) => s + (Number(x) || 0), 0);
+  return `<div class="card" id="rdoCard"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Efetivo e equipamentos (RDO)</h3>
+      <span class="row"><button class="btn peq" id="rdoCopiar" title="Traz o efetivo e os equipamentos do último dia lançado">Copiar do último dia</button>
+      <button class="btn peq" id="rdoDia">RDO do dia (Excel)</button></span></div>
+    <div class="rdogrid">
+      <div><table class="tb rdot"><thead><tr><th class="l">Mão de obra</th><th>Presentes</th><th>Ausentes</th></tr></thead><tbody>
+        ${nomesMO.map(n => `<tr><td class="l">${esc(n)}</td><td><input class="rdo-p" data-nome="${esc(n)}" inputmode="numeric" value="${ef[n]?.p || ""}"></td><td><input class="rdo-a" data-nome="${esc(n)}" inputmode="numeric" value="${ef[n]?.a || ""}"></td></tr>`).join("")}
+      </tbody><tfoot><tr><td class="l">TOTAL</td><td id="rdoTotP">${totP || "—"}</td><td id="rdoTotA">${totA || "—"}</td></tr></tfoot></table>
+      <button class="btn peq" id="rdoAddMO" style="margin-top:6px">+ Função</button></div>
+      <div><table class="tb rdot"><thead><tr><th class="l">Equipamentos</th><th>Quantidade</th></tr></thead><tbody>
+        ${nomesEQ.map(n => `<tr><td class="l">${esc(n)}</td><td><input class="rdo-e" data-nome="${esc(n)}" inputmode="numeric" value="${eq[n] || ""}"></td></tr>`).join("")}
+      </tbody><tfoot><tr><td class="l">TOTAL</td><td id="rdoTotE">${totE || "—"}</td></tr></tfoot></table>
+      <button class="btn peq" id="rdoAddEQ" style="margin-top:6px">+ Equipamento</button></div>
+    </div>
+    <div class="form" style="margin-top:12px">
+      <label>Chuva no dia (mm)<input id="rdoChuva" inputmode="decimal" value="${(w.chuva || {})[ds] ?? ""}"></label>
+      <label class="full">Observações da fiscalização<textarea id="rdoObsFisc" placeholder="Anotações do fiscal da prefeitura">${esc((w.obsFisc || {})[ds] || "")}</textarea></label>
+    </div></div>`;
+}
+function lerRDO(){
+  const ef = {}, eq = {};
+  $$("#rdoCard .rdo-p").forEach(i => { const n = i.dataset.nome, p = num(i.value), a = num($(`#rdoCard .rdo-a[data-nome="${CSS.escape(n)}"]`)?.value || "");
+    if ((p || 0) > 0 || (a || 0) > 0) ef[n] = { p: p || 0, a: a || 0 }; });
+  $$("#rdoCard .rdo-e").forEach(i => { const q = num(i.value); if ((q || 0) > 0) eq[i.dataset.nome] = q; });
+  return { ef, eq, chuva: num($("#rdoChuva")?.value || ""), obsFisc: ($("#rdoObsFisc")?.value || "").trim() };
+}
+document.addEventListener("input", ev => {
+  if (!ev.target.closest?.("#rdoCard") || !/rdo-[pae]/.test(ev.target.className)) return;
+  const r = lerRDO();
+  $("#rdoTotP").textContent = Object.values(r.ef).reduce((s,x) => s + x.p, 0) || "—";
+  $("#rdoTotA").textContent = Object.values(r.ef).reduce((s,x) => s + x.a, 0) || "—";
+  $("#rdoTotE").textContent = Object.values(r.eq).reduce((s,x) => s + x, 0) || "—";
+});
+
+/* ------------------------------ exportação no modelo LM ------------------------------ */
+const semanasCache = {};
+async function semanaDe(dia){ const seg = mondayOf(dia), k = S.obraId + "_" + seg; return semanasCache[k] ||= await getWeek(S.obraId, seg); }
+// início do período do BM em que o dia cai (para numerar o RDO dentro da medição, como no modelo)
+function inicioBM(dia){
+  const meds = S.ext.meds || [];
+  const m = meds.find(x => x.inicio <= dia && dia <= x.fim); if (m) return m.inicio;
+  const ant = meds.filter(x => x.fim < dia).sort((a,b) => b.fim.localeCompare(a.fim))[0];
+  return ant ? addDays(ant.fim, 1) : (S.ext.contrato?.inicio || plano()?.inicio || dia);
+}
+async function diasComDiario(ini, fim){
+  const out = [];
+  for (let d = ini; d <= fim; d = addDays(d, 1)){ const w = await semanaDe(d), k = String(dayIdx(d)); if ((w.atualizado || {})[k]) out.push(d); }
+  return out;
+}
+async function exportarRDO(dias, nomeArq){
+  const c = S.ext.contrato || {}, o = obraAtual();
+  if (!dias.length){ toast("Nenhum dia com diário salvo nesse período.", true); return; }
+  const wb = new ExcelJS.Workbook(); wb.creator = "Obras LM";
+  const logoB64 = await (async () => { const b = await (await fetch("logo-rc.png")).blob(); return await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); }); })();
+  const logo = wb.addImage({ base64:logoB64, extension:"png" });
+  const fino = { style:"thin", color:{ argb:"FF000000" } }, med = { style:"medium", color:{ argb:"FF000000" } };
+  const CINZA = "FFD9D9D9", AZ = "FF8DB4E2", LAR = "FFFAC090";
+  const cidade = (c.cidade || (c.contratante || "").replace(/^.*?\bde\s+/i, "") || o.nome).toUpperCase();
+  const prazo = c.prazoDias || (c.prazoMeses ? c.prazoMeses * 30 : null);
+  const ini = c.inicio || plano()?.inicio || null;
+  const LET = "ABCDEFGHIJKLMNOPQRSTU".split("");
+  const ALT = { 1:54, 2:18.75, 3:24, 4:50.25, 5:23.25, 6:14.45, 7:14.45, 8:14.45, 9:14.45, 10:14.45, 12:15, 13:15, 14:22.15, 15:22.15, 16:22.15, 17:22.15, 18:22.15, 19:22.15, 20:22.15,
+    22:14.45, 23:15, 24:22.15, 25:22.15, 26:22.15, 27:22.15, 28:22.15, 30:15, 31:29.1, 32:29.1, 33:30, 34:30, 35:30, 36:30, 37:15, 38:30, 39:30, 40:30, 41:30, 42:30, 43:15, 44:30, 45:30, 46:30, 47:30, 48:30,
+    49:20.25, 50:39, 51:39, 52:39, 53:39, 54:39, 55:39, 56:16.9, 57:15.75, 58:22.5, 59:30 };
+  const usados = new Set(); let nRdo = 0, iniAnt = null;
+  for (const dia of dias.sort()){
+    const iBM = inicioBM(dia); if (iBM !== iniAnt){ iniAnt = iBM; nRdo = (await diasComDiario(iBM, addDays(dia, -1))).length; }
+    nRdo++;
+    const w = await semanaDe(dia), d = String(dayIdx(dia));
+    let nome = dia.slice(8,10) + "-" + dia.slice(5,7); let k2 = 2; while (usados.has(nome)) nome = dia.slice(8,10) + "-" + dia.slice(5,7) + " (" + k2++ + ")"; usados.add(nome);
+    const ws = wb.addWorksheet(nome, { pageSetup:{ paperSize:9, orientation:"portrait", fitToPage:true, fitToWidth:1, fitToHeight:1, horizontalCentered:true,
+      margins:{ left:.25, right:.25, top:.3, bottom:.3, header:.1, footer:.1 } } });
+    LET.forEach(L => ws.getColumn(L).width = ({ A:8.3, R:9.4, S:8.3 })[L] || 8);
+    Object.entries(ALT).forEach(([r, h]) => ws.getRow(+r).height = h);
+    const cel = (ref, v, op = {}) => {
+      if (ref.includes(":")) ws.mergeCells(ref);
+      const [a, b] = ref.split(":"); ws.getCell(a).value = v;
+      const ca = ws.getCell(a), cb = ws.getCell(b || a);
+      for (let r = ca.row; r <= cb.row; r++) for (let k = ca.col; k <= cb.col; k++){
+        const x = ws.getCell(r, k);
+        x.font = { name:op.font || "Arial", size:op.size || 8, bold:!!op.bold };
+        x.alignment = { horizontal:op.h || "center", vertical:op.v || "middle", wrapText:true };
+        if (op.fill) x.fill = { type:"pattern", pattern:"solid", fgColor:{ argb:op.fill } };
+        const bd = op.bm ? med : fino; if (op.borda !== false) x.border = { top:bd, left:bd, bottom:bd, right:bd };
+        if (op.fmt) x.numFmt = op.fmt;
+      }
+    };
+    // cabeçalho
+    cel("A1:B1", "", { bm:true }); ws.addImage(logo, { tl:{ col:.2, row:.08 }, ext:{ width:92, height:66 } });
+    cel("C1:U1", `RELATORIO DIARIO DE OBRA\nOBRA ${o.nome}`, { font:"Calibri", size:18, bold:true, h:"left", v:"top", bm:true });
+    cel("A2:P2", "", {}); cel("Q2", "DATA", { bold:true, h:"left" }); cel("R2:U2", xlDate(dia), { size:11, bold:true, fmt:"dd/mm/yyyy" });
+    cel("A3:B3", "EMPRESA:", { bold:true, h:"left" }); cel("C3:I3", "LM EMPREENDIMENTOS E CONSULTORIA LTDA", { size:11, bold:true });
+    cel("J3:K3", "CIDADE:", { bold:true, h:"left" }); cel("L3:P3", cidade, { size:11, bold:true }); cel("Q3", "DATA INICIAL", { bold:true, h:"left" });
+    cel("R3:U3", ini ? xlDate(ini) : "", { size:11, bold:true, fmt:"dd/mm/yyyy" });
+    cel("A4:B4", "OBRA:", { bold:true, h:"left" }); cel("C4:L4", (c.objeto || o.nome).toUpperCase(), { size:9, bold:true });
+    cel("M4:N4", "N° CONTRATO", { bold:true }); cel("O4:P4", c.numero || "", { size:10, bold:true }); cel("Q4", "RDO Nº:", { bold:true, h:"left" }); cel("R4:U4", nRdo, { size:11, bold:true });
+    cel("A5:U5", "", { borda:false });
+    // dia da semana, tempo e dados contratuais
+    cel("A6:G6", "DIA DA SEMANA", { bold:true, bm:true }); cel("H6", "", {}); cel("I6:O6", "CONDIÇÕES DO TEMPO", { bold:true }); cel("P6", "", {}); cel("Q6:U6", "DADOS CONTRATUAIS", { bold:true });
+    ["SEG","TER","QUA","QUI","SEX","SÁB","DOM"].forEach((t,k) => { cel(`${LET[k]}7`, t, {}); cel(`${LET[k]}8`, k === +d ? "X" : "", { bold:true, size:10 }); });
+    cel("H7", "", {}); cel("I7", "", {}); cel("J7:K7", "MANHÃ", { bold:true }); cel("L7:M7", "TARDE", { bold:true }); cel("N7:O7", "NOITE", { bold:true });
+    const cl = (w.clima || {})[d] || {}, bom = t => cl[t] && cl[t] !== "CHUVOSO", chuv = t => cl[t] === "CHUVOSO";
+    cel("I8", "BOM ", { h:"left" }); cel("J8:K8", bom("manha") ? "X" : "", { bold:true }); cel("L8:M8", bom("tarde") ? "X" : "", { bold:true }); cel("N8:O8", bom("noite") ? "X" : "", { bold:true });
+    cel("I9", "CHUVA", { h:"left" }); cel("J9:K9", chuv("manha") ? "X" : "", { bold:true }); cel("L9:M9", chuv("tarde") ? "X" : "", { bold:true }); cel("N9:O9", chuv("noite") ? "X" : "", { bold:true });
+    cel("I10", "mm", { h:"left" }); cel("J10:K10", (w.chuva || {})[d] ?? "", { bold:true }); cel("L10:M10", "", {}); cel("N10:O10", "", {});
+    cel("Q7:R7", "PRAZO CONTRATUAL:", { h:"left" }); cel("S7:U7", prazo || "", { bold:true });
+    cel("Q8:R8", "DIAS DECORRIDOS:", { h:"left" }); cel("S8:U8", ini ? { formula:"R2-R3" } : "", { bold:true, fmt:"0" });
+    cel("Q9:R9", "DIAS RESTANTES:", { h:"left" }); cel("S9:U9", ini && prazo ? { formula:"S7-S8" } : "", { bold:true, fmt:"0" });
+    cel("Q10:U10", "", {});
+    const ef = (w.efetivo || {})[d] || {}, eq = (w.equip || {})[d] || {};
+    const totP = Object.values(ef).reduce((s,x) => s + (Number(x.p) || 0), 0), totA = Object.values(ef).reduce((s,x) => s + (Number(x.a) || 0), 0);
+    cel("A9:B9", "EFETIVO TOTAL:", { h:"left" }); cel("C9:G9", totP + totA, { bold:true });
+    cel("A10:B10", "PRESENTES:", { h:"left" }); cel("C10:D10", totP, { bold:true }); cel("E10:F10", "AUSENTES:", { h:"left" }); cel("G10", totA, { bold:true });
+    // mão de obra (3 colunas × 7 linhas) e equipamentos (3 × 5); quem tem quantidade vem primeiro
+    const ordena = (lista, mapa, n) => { const com = Object.keys(mapa), resto = lista.filter(x => !com.includes(x)); return [...lista.filter(x => com.includes(x)), ...com.filter(x => !lista.includes(x)), ...resto].slice(0, n); };
+    const mo = ordena(FUNCOES_RDO, ef, 20), eqs = ordena(EQUIP_RDO, eq, 14);
+    cel("A12:A20", "MAO DE OBRA", { size:9, bold:true, bm:true });
+    [["B12:E13","F12:G13"],["I12:L13","M12:N13"],["P12:S13","T12:U13"]].forEach(([a,b]) => { cel(a, "DESCRIÇÃO", { size:7, bold:true }); cel(b, "QUANTIDADE", { size:7, bold:true }); });
+    cel("H12:H20", "", {}); cel("O12:O20", "", {});
+    const colsMO = [["B","E","F","G"],["I","L","M","N"],["P","S","T","U"]];
+    for (let k = 0; k < 20; k++){
+      const [c1, c2, q1, q2] = colsMO[Math.floor(k / 7)], r = 14 + (k % 7), n = mo[k];
+      cel(`${c1}${r}:${c2}${r}`, n || "", { size:7, h:"left" }); cel(`${q1}${r}:${q2}${r}`, n && ef[n] ? (ef[n].p || 0) : "", { size:8 });
+    }
+    cel("P20:S20", "TOTAL ", { size:7, bold:true, h:"left" }); cel("T20:U20", { formula:"SUM(F14:F20,M14:M20,T14:T19)" }, { bold:true });
+    cel("A21:U21", "", { borda:false });
+    cel("A22:A28", "EQUIPAMENTOS", { size:9, bold:true, bm:true });
+    [["B22:E23","F22:G23"],["I22:L23","M22:N23"],["P22:S23","T22:U23"]].forEach(([a,b]) => { cel(a, "DESCRIÇÃO", { size:7, bold:true }); cel(b, "QUANTIDADE", { size:7, bold:true }); });
+    cel("H22:H28", "", {}); cel("O22:O28", "", {});
+    for (let k = 0; k < 14; k++){
+      const [c1, c2, q1, q2] = colsMO[Math.floor(k / 5)], r = 24 + (k % 5), n = eqs[k];
+      cel(`${c1}${r}:${c2}${r}`, n || "", { size:7, h:"left" }); cel(`${q1}${r}:${q2}${r}`, n && eq[n] ? eq[n] : "", { size:8 });
+    }
+    cel("P28:S28", "TOTAL ", { size:7, bold:true, h:"left" }); cel("T28:U28", { formula:"SUM(F24:F28,M24:M28,T24:T27)" }, { bold:true });
+    cel("A29:U29", "", { borda:false });
+    // produção do dia
+    const prod = [];
+    for (const g of estrutura(w)) for (const a of g.acts){ const r = val(a.real, +d), p = val(a.prog, +d); if (r || p)
+      prod.push(`${a.descricao}${r ? ` — realizado ${fmtNum(r)} ${a.unidade}` : ""}${p ? ` (programado ${fmtNum(p)} ${a.unidade})` : ""}`); }
+    for (const a of naoProgList(w)){ const r = val(a.real, +d); if (r) prod.push(`${a.descricao} — realizado ${fmtNum(r)} ${a.unidade} (não programada)`); }
+    cel("A30:B30", "ITEM", { size:9, bold:true, bm:true }); cel("C30:U30", "DISCRIMINAÇÃO DAS ATIVIDADES", { size:9, bold:true });
+    cel("A31:A36", "PRODUÇÃO", { size:9, bold:true, fill:CINZA, bm:true });
+    for (let k = 0; k < 6; k++){ cel(`B${31+k}`, k + 1, { size:9 }); cel(`C${31+k}:U${31+k}`, k < 5 ? (prod[k] || "") : prod.slice(5).join(" · "), { font:"Calibri", size:10, h:"left" }); }
+    // observações
+    const linhas = s => String(s || "").split(/\n+|(?<=\.)\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ])/).map(x => x.trim()).filter(Boolean);
+    const obsLM = linhas((w.obs || {})[d]), obsF = linhas((w.obsFisc || {})[d]);
+    cel("A37:B37", "ITEM", { size:9, bold:true, bm:true }); cel("C37:U37", "", {});
+    cel("A38:A42", "OBSERVAÇÕES\nLM EMPREENDIMENTOS E CONSULTORIA LTDA", { size:9, bold:true, fill:AZ, bm:true });
+    for (let k = 0; k < 5; k++){ cel(`B${38+k}`, k + 1, { size:9 }); cel(`C${38+k}:U${38+k}`, k < 4 ? (obsLM[k] || "") : obsLM.slice(4).join(" "), { font:"Calibri", size:10, h:"left" }); }
+    cel("A43:B43", "ITEM", { size:9, bold:true, bm:true }); cel("C43:U43", "", {});
+    cel("A44:A48", "OBSERVAÇÕES \nFISCALIZAÇÃO", { size:9, bold:true, fill:LAR, bm:true });
+    for (let k = 0; k < 5; k++){ cel(`B${44+k}`, k + 1, { size:9 }); cel(`C${44+k}:U${44+k}`, k < 4 ? (obsF[k] || "") : obsF.slice(4).join(" "), { font:"Calibri", size:10, h:"left" }); }
+    // galeria de fotos (3 do dia)
+    cel("A49:U49", "GALERIA DE FOTOS", { font:"Calibri", size:11, bold:true, bm:true });
+    const fotos = (await store.list(COL_FOTO, "obraDia", S.obraId + "_" + dia)).sort((a,b) => (a.criadoEm || "").localeCompare(b.criadoEm || "")).slice(0, 3);
+    const boxes = [["A50:G55","A56:G56",0,6],["H50:N55","H56:N56",7,13],["O50:U55","O56:U56",14,20]];
+    const colPx = L => Math.round((({ A:8.3, R:9.4, S:8.3 })[L] || 8) * 7 + 5), boxH = 6 * 39 * 96 / 72;
+    boxes.forEach(([b, lg, c1, c2], k) => {
+      cel(b, "", {}); const f = fotos[k];
+      cel(lg, f ? `${(f.servico || "").toUpperCase()}${f.estaca ? " — Est. " + f.estaca : ""}` : "", { size:7 });
+      if (!f) return;
+      const boxW = LET.slice(c1, c2 + 1).reduce((s,L) => s + colPx(L), 0) - 8, iw = f.w || 1600, ih = f.hh || 1200;
+      const kk = Math.min(boxW / iw, (boxH - 8) / ih), wpx = Math.round(iw * kk), hpx = Math.round(ih * kk);
+      let off = (boxW + 8 - wpx) / 2, col = c1; while (off > colPx(LET[col]) && col < c2){ off -= colPx(LET[col]); col++; }
+      ws.addImage(wb.addImage({ base64:f.dataUrl, extension:"jpeg" }), { tl:{ col: col + off / colPx(LET[col]), row: 49 + ((boxH - hpx) / 2) / (39 * 96 / 72) }, ext:{ width:wpx, height:hpx } });
+    });
+    cel("A57:U57", "ASSINATURAS", { font:"Calibri", size:11, bold:true, bm:true });
+    cel("A58:G59", "RESPONSAVEL PELA OBRA", { size:9, bold:true, v:"bottom", bm:true }); cel("H58:N59", "RESPONSAVEL TECNICO", { size:9, bold:true, v:"bottom", bm:true }); cel("O58:U59", "FISCALIZACAO", { size:9, bold:true, v:"bottom", bm:true });
+    ws.pageSetup.printArea = "A1:U59";
+  }
+  const buf = await wb.xlsx.writeBuffer();
+  baixar(new Blob([buf], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), nomeArq);
+  toast(`RDO gerado (${dias.length} dia${dias.length > 1 ? "s" : ""}).`);
+}
+document.addEventListener("click", async ev => {
+  const t = ev.target.closest("button"); if (!t) return;
+  try {
+    if (t.id === "rdoAddMO" || t.id === "rdoAddEQ"){
+      const n = (prompt(t.id === "rdoAddMO" ? "Função (ex.: SERVENTE, RASTELEIRO):" : "Equipamento (ex.: ESCAVADEIRA, CAMINHÃO BASCULANTE 18 M³):") || "").trim().toUpperCase(); if (!n) return;
+      const r = lerRDO(); S.rdoExtra[t.id === "rdoAddMO" ? "mo" : "eq"].push(n);
+      const card = $("#rdoCard"); const ds = String(dayIdx(S.dia));
+      const tmp = { ...S.week, efetivo:{ ...(S.week.efetivo || {}), [ds]:r.ef }, equip:{ ...(S.week.equip || {}), [ds]:r.eq }, chuva:{ ...(S.week.chuva || {}), [ds]:r.chuva }, obsFisc:{ ...(S.week.obsFisc || {}), [ds]:r.obsFisc } };
+      card.outerHTML = cardRDO(tmp, ds); return;
+    }
+    if (t.id === "rdoCopiar"){
+      // procura o último dia anterior com efetivo lançado (até 4 semanas para trás)
+      for (let k = 1; k <= 28; k++){
+        const dia = addDays(S.dia, -k), w = await semanaDe(dia), ds = String(dayIdx(dia));
+        const ef = (w.efetivo || {})[ds], eq = (w.equip || {})[ds];
+        if (ef && Object.keys(ef).length || eq && Object.keys(eq).length){
+          const dAt = String(dayIdx(S.dia)), r = lerRDO();
+          const tmp = { ...S.week, efetivo:{ ...(S.week.efetivo || {}), [dAt]:ef || {} }, equip:{ ...(S.week.equip || {}), [dAt]:eq || {} }, chuva:{ ...(S.week.chuva || {}), [dAt]:r.chuva }, obsFisc:{ ...(S.week.obsFisc || {}), [dAt]:r.obsFisc } };
+          $("#rdoCard").outerHTML = cardRDO(tmp, dAt); toast(`Copiado de ${fmtBR(dia)}. Ajuste e salve o diário.`); return;
+        }
+      }
+      toast("Não achei efetivo lançado nas últimas 4 semanas.", true); return;
+    }
+    if (t.id === "rdoDia"){
+      const ds = String(dayIdx(S.dia));
+      if (!(S.week.atualizado || {})[ds]){ toast("Salve o diário deste dia antes de gerar o RDO.", true); return; }
+      delete semanasCache[S.obraId + "_" + S.semana];
+      if (S.ext.obraId !== S.obraId) await loadExtras();
+      await exportarRDO([S.dia], `RDO ${S.dia.slice(8,10)}-${S.dia.slice(5,7)}-${S.dia.slice(0,4)} - ${obraAtual().nome}.xlsx`); return;
+    }
+    if (t.id === "rdoPeriodo"){
+      const m = medAtual(); for (const k of Object.keys(semanasCache)) delete semanasCache[k];
+      const dias = await diasComDiario(m.inicio, m.fim);
+      await exportarRDO(dias, `RDO BM ${String(m.numero).padStart(2,"0")} - ${obraAtual().nome}.xlsx`); return;
+    }
   } catch(e){ console.error(e); toast("Erro: " + e.message, true); }
 });
 
