@@ -299,6 +299,13 @@ function ir(i){
   setTimeout(() => { location.href = SISTEMAS[i].url; }, 500);
 }
 
+// ao voltar pelo navegador a página vem do cache com a animação de entrada parada no meio: desfaz
+addEventListener("pageshow", () => {
+  document.getElementById("warp").classList.remove("on");
+  if (dlg.open) dlg.close();
+  [...grid.children].forEach(b => { b.style.transform = ""; });
+});
+
 function abrir(i, e){
   const card = grid.children[i].getBoundingClientRect();
   origem = e && e.clientX ? { x: e.clientX, y: e.clientY } : { x: card.left + card.width / 2, y: card.top + card.height / 2 };
