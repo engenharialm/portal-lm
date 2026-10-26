@@ -637,6 +637,7 @@ const store = {
 
 async function initDb(){
   if (LOCAL){ $("#modo").innerHTML = '<span class="badge">MODO TESTE (local)</span>'; return; }
+  $("#modo").innerHTML = '<span class="badge" title="Sistema ainda em desenvolvimento: os dados são reais, mas telas e regras podem mudar">EM DESENVOLVIMENTO</span>';
   const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
   fs = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
   const app = initializeApp(firebaseConfig);

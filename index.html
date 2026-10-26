@@ -96,6 +96,8 @@
   .tag{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:20px;border:1px solid}
   .tag.open{color:#2BFF9A;border-color:rgba(43,255,154,.35);background:rgba(43,255,154,.06)}
   .tag.lock{color:#FFC14D;border-color:rgba(255,193,77,.35);background:rgba(255,193,77,.06)}
+  h2 .tag{vertical-align:middle;margin-left:6px;font-size:.6rem;font-family:inherit;white-space:nowrap}
+  .tag.dev{color:#B9A6FF;border-color:rgba(123,92,255,.45);background:rgba(123,92,255,.1)}
   kbd{font-family:Montserrat,sans-serif;font-size:.7rem;color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:1px 6px;margin-left:6px}
 
   .hint{text-align:center;color:var(--muted);font-size:.8rem;margin-top:34px}
@@ -188,10 +190,9 @@ LogoPDCA.montar(document.getElementById("lmHero"), { nome:true, loop:true, pausa
    Para proteger um sistema com senha, troque  senha: null  por  senha: "suaSenha".
    Atenção: como o portal não tem servidor, é uma trava para uso casual —
    quem tiver o link direto do sistema ainda entra por ele.
-   VERSÃO DE TESTE: os cartões abrem as cópias com o visual novo que ficam
-   nas pastas licitacoes/, producao/ e controle/ deste repositório (mesmos dados
-   da equipe). Na aprovação, voltar para os endereços oficiais:
-   https://engenharialm.github.io/licitacoes/ · /diario-producao-lm/ · /controle-lm/
+   Licitações e Controle abrem os sites oficiais. Obras (pasta producao/ deste
+   repositório) ainda está em desenvolvimento: fica com senha e a etiqueta
+   "Em desenvolvimento" (campo  dev: true ).
    ========================================================================= */
 const ICONES = {
   licitacoes: '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>',
@@ -204,7 +205,7 @@ const SISTEMAS = [
     nome: "Licitações",
     icone: "licitacoes",
     descricao: "Licitações do PNCP, interesse SIM/NÃO, atestados, garantias e resultados.",
-    url: "licitacoes/",
+    url: "https://engenharialm.github.io/licitacoes/",
     senha: null
   },
   {
@@ -212,13 +213,14 @@ const SISTEMAS = [
     icone: "producao",
     descricao: "Diário e programação, contrato, medições e compras de cada obra.",
     url: "producao/",
-    senha: null
+    senha: "LM12",
+    dev: true
   },
   {
     nome: "Controle",
     icone: "controle",
     descricao: "Consolidado semanal de mão de obra e equipamentos por obra.",
-    url: "controle/",
+    url: "https://engenharialm.github.io/controle-lm/",
     senha: null
   }
 ];
@@ -257,7 +259,7 @@ SISTEMAS.forEach((s, i) => {
     '<div class="inner">' +
       '<span class="num">0' + (i + 1) + '</span>' +
       '<div class="icon">' + ICONES[s.icone] + '</div>' +
-      '<h2>' + s.nome + '</h2>' +
+      '<h2>' + s.nome + (s.dev ? ' <span class="tag dev">Em desenvolvimento</span>' : '') + '</h2>' +
       '<p>' + s.descricao + '</p>' +
       '<div class="foot">' +
         '<span class="go">ACESSAR <i>→</i></span>' +
