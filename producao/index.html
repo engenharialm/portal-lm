@@ -152,6 +152,13 @@
   .barlinha{display:grid;grid-template-columns:minmax(120px,1fr) 2fr auto;gap:10px;align-items:center;padding:5px 0;font-size:13px}
   .chip{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;
     color:var(--c);border:1px solid var(--c);background:color-mix(in srgb,var(--c) 12%,transparent)}
+  /* quadro de obras: colunas marcadas com X */
+  .qx{width:34px;height:30px;border:1px solid var(--borda);border-radius:8px;background:transparent;color:inherit;font-weight:800;font-size:14px;cursor:pointer}
+  .qx.on{background:var(--azul2);border-color:var(--azul2);color:#fff}
+  .qx.on.si{background:#E0A800;border-color:#E0A800;color:#000}
+  table.tb tr.qsi td:first-child{box-shadow:inset 3px 0 0 #E0A800}
+  table.tb.quadro td{font-size:12px;white-space:nowrap}
+  table.tb.quadro td.l{min-width:220px;white-space:normal}
   .pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}
   .pipe div{background:var(--card);border:1px solid var(--borda);border-top:3px solid var(--c);border-radius:10px;padding:8px 12px;display:flex;flex-direction:column}
   .pipe span{font-size:11px;color:var(--mut);text-transform:uppercase}
@@ -505,6 +512,7 @@
   <button data-tab="recursos">Recursos</button>
   <button data-tab="compras">Compras</button>
   <button data-tab="obras">Cadastro</button>
+  <button data-tab="quadro">Quadro de obras</button>
 </nav>
 </div>
 <main>
@@ -517,6 +525,7 @@
   <section id="v-recursos" class="view"></section>
   <section id="v-compras" class="view"></section>
   <section id="v-obras" class="view"></section>
+  <section id="v-quadro" class="view"></section>
 </main>
 <div class="savebar" id="savebar"></div>
 <div id="toast"></div>
@@ -1064,12 +1073,13 @@ function renderObras(){
 function aplicaAcessoUI(){
   const geral = S.acesso?.geral;
   $('[data-tab="obras"]').style.display = geral ? "" : "none";
+  $('[data-tab="quadro"]').style.display = geral ? "" : "none";
   $("#acessoLbl").textContent = geral ? "Acesso geral" : "Acesso da obra";
-  if (!geral && S.tab === "obras") $('[data-tab="diario"]').click();
+  if (!geral && (S.tab === "obras" || S.tab === "quadro")) $('[data-tab="diario"]').click();
 }
 function setSavebar(html){ $("#savebar").innerHTML = html; $("#savebar").style.display = html ? "flex" : "none"; }
 function render(){
-  ({ diario:renderDiario, prog:renderProg, semana:renderSemana, obras:renderObras, contrato:renderContrato, plano:renderPlanejamento, medicoes:renderMedicoes, recursos:renderRecursos, compras:renderCompras })[S.tab]();
+  ({ diario:renderDiario, prog:renderProg, semana:renderSemana, obras:renderObras, contrato:renderContrato, plano:renderPlanejamento, medicoes:renderMedicoes, recursos:renderRecursos, compras:renderCompras, quadro:renderQuadro })[S.tab]();
 }
 
 /* ------------------------------- exportação ------------------------------- */
@@ -4176,6 +4186,202 @@ document.addEventListener("click", async ev => {
       await exportarRDO(dias, `RDO BM ${String(m.numero).padStart(2,"0")} - ${obraAtual().nome}.xlsx`); return;
     }
   } catch(e){ console.error(e); toast("Erro: " + e.message, true); }
+});
+
+/* ======================================================================
+   QUADRO DE OBRAS — contratos da LM com valor, medido e saldo (só acesso geral)
+   quadro_obras/{id}: { contratante, numero, cnpj, status, inicio, termino, valor, medido, obs,
+                        emExecucao, semInfo, obraId, atualizadoEm, atualizadoPor }
+   quadro_obras_cfg/geral: { dataBase }
+   ====================================================================== */
+const COL_QUADRO = "quadro_obras", COL_QCFG = "quadro_obras_cfg";
+const STATUS_QUADRO = ["ATIVO","A INICIAR","PARALISADO","CONCLUÍDO"];
+const Q = { lista:null, cfg:{}, filtro:"todas", busca:"", edit:null, sis:{} };
+const qSaldo = r => r.valor == null ? null : r2(r.valor - (r.medido || 0));
+const qOrdena = l => l.sort((a,b) => norm(a.contratante).localeCompare(norm(b.contratante)) || (a.numero || "").localeCompare(b.numero || ""));
+
+async function carregaQuadro(){
+  const [lista, cfg] = await Promise.all([store.list(COL_QUADRO), store.get(COL_QCFG, "geral")]);
+  Q.lista = qOrdena(lista); Q.cfg = cfg || {};
+  await carregaSistemaQuadro();
+}
+// valores que o próprio sistema tem das obras ligadas (contrato e soma das medições)
+async function carregaSistemaQuadro(){
+  const ids = [...new Set(Q.lista.map(r => r.obraId).filter(Boolean))];
+  await Promise.all(ids.map(async id => {
+    const [c, meds] = await Promise.all([store.get(COL_CONTR, id), store.list(COL_MED, "obraId", id)]);
+    Q.sis[id] = c ? { valor:valorContrato(c), medido:r2(meds.reduce((s,m) => s + valorMed(m, c), 0)), n:meds.length } : null;
+  }));
+}
+function qFiltrada(){
+  const b = norm(Q.busca);
+  return Q.lista.filter(r => {
+    if (Q.filtro === "exec" && !r.emExecucao) return false;
+    if (Q.filtro === "semInfo" && !r.semInfo) return false;
+    if (Q.filtro === "iniciar" && r.status !== "A INICIAR") return false;
+    return !b || [r.contratante, r.numero, r.cnpj, r.obs].some(x => norm(x).includes(b));
+  });
+}
+function renderQuadro(){
+  const el = $("#v-quadro");
+  if (!ehGeral()){ el.innerHTML = `<div class="card vazio">O quadro de obras é visível só no acesso geral.</div>`; setSavebar(""); return; }
+  if (!Q.lista){
+    el.innerHTML = `<div class="card vazio">Carregando...</div>`; setSavebar("");
+    carregaQuadro().then(() => { if (S.tab === "quadro") renderQuadro(); }).catch(e => { console.error(e); el.innerHTML = `<div class="card vazio">Erro ao carregar: ${esc(e.message)}</div>`; });
+    return;
+  }
+  const L = Q.lista, n = f => L.filter(f).length;
+  const exec = L.filter(r => r.emExecucao);
+  let h = `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Quadro de obras e serviços em execução</h3>
+      <span class="row"><label>Data-base <input type="date" id="qDataBase" value="${esc(Q.cfg.dataBase || "")}"></label>
+      <button class="btn peq" id="qNova">+ Obra</button><button class="btn peq" id="qExcel">Exportar Excel</button></span></div>
+    <p class="nota">Marque com X as obras <b>em execução</b> e as que estão <b>sem informação atualizada</b>. O saldo a faturar é calculado (valor do contrato − valor medido). Clique em <b>Editar</b> para corrigir valores; obras ligadas a uma obra do sistema mostram também o valor que o sistema calcula pelas medições lançadas.</p></div>`;
+  h += `<div class="kpi">
+    <div><b>${exec.length}</b><span>Em execução</span></div>
+    <div><b>${fmtR(r2(exec.reduce((s,r) => s + (qSaldo(r) || 0), 0)))}</b><span>Saldo a faturar das obras em execução</span></div>
+    <div><b>${n(r => r.semInfo)}</b><span>Sem informação atualizada</span></div>
+    <div><b>${fmtR(r2(L.reduce((s,r) => s + (qSaldo(r) || 0), 0)))}</b><span>Saldo a faturar (todas)</span></div></div>`;
+  if (Q.edit) h += formQuadro();
+  h += `<div class="ntchips">${[["todas","Todas",L.length],["exec","Em execução",exec.length],["semInfo","Sem informação atualizada",n(r => r.semInfo)],["iniciar","A iniciar",n(r => r.status === "A INICIAR")]]
+      .map(([k,t,q]) => `<button data-qfiltro="${k}" class="${Q.filtro === k ? "on" : ""}">${t} (${q})</button>`).join("")}
+    <input id="qBusca" placeholder="Buscar contratante, contrato, CNPJ..." value="${esc(Q.busca)}" style="flex:1;min-width:200px"></div>
+    <div id="qTabela">${tabelaQuadro()}</div>`;
+  el.innerHTML = h; setSavebar("");
+}
+function tabelaQuadro(){
+  const ls = qFiltrada();
+  if (!ls.length) return `<div class="card vazio">Nenhuma obra neste filtro.</div>`;
+  const tot = k => r2(ls.reduce((s,r) => s + (k === "saldo" ? (qSaldo(r) || 0) : (r[k] || 0)), 0));
+  let h = `<div class="tbwrap"><table class="tb quadro"><thead><tr><th class="l">Contratante</th><th>Nº contrato</th><th>CNPJ</th><th>Status</th><th>Início</th><th>Término</th>
+    <th>Valor do contrato</th><th>Valor medições</th><th>Saldo a faturar</th><th title="Obra em execução">Em<br>execução</th><th title="Informação desatualizada ou incompleta">Sem info.<br>atualizada</th><th class="l">Obs</th><th></th></tr></thead><tbody>`;
+  for (const r of ls){
+    const sis = r.obraId ? Q.sis[r.obraId] : null, sd = qSaldo(r);
+    const difere = sis && (Math.abs(sis.valor - (r.valor || 0)) >= 0.01 || Math.abs(sis.medido - (r.medido || 0)) >= 0.01);
+    h += `<tr class="${r.semInfo ? "qsi" : ""}"><td class="l">${esc(r.contratante)}${r.obraId ? `<br><small>ligada ao sistema: ${esc(S.obras.find(o => o.id === r.obraId)?.nome || "?")}</small>` : ""}${r.atualizadoEm ? `<br><small>atualizado ${fmtBR(r.atualizadoEm.slice(0,10))}</small>` : ""}</td>
+      <td>${esc(r.numero || "")}</td><td>${esc(r.cnpj || "")}</td><td>${esc(r.status || "")}</td><td>${r.inicio ? fmtBR(r.inicio) : ""}</td><td>${r.termino ? fmtBR(r.termino) : ""}</td>
+      <td>${r.valor != null ? fmtR(r.valor) : ""}${difere ? `<br><small title="Calculado pelo contrato cadastrado no sistema">sistema: ${fmtR(sis.valor)}</small>` : ""}</td>
+      <td>${r.medido != null ? fmtR(r.medido) : ""}${difere ? `<br><small title="Soma das ${sis.n} medição(ões) lançadas no sistema">sistema: ${fmtR(sis.medido)}</small>` : ""}</td>
+      <td class="${sd !== null && sd < 0 ? "neg" : ""}">${sd !== null ? fmtR(sd) : ""}</td>
+      <td><button class="qx ${r.emExecucao ? "on" : ""}" data-qx="emExecucao" data-qid="${r.id}">${r.emExecucao ? "X" : ""}</button></td>
+      <td><button class="qx si ${r.semInfo ? "on" : ""}" data-qx="semInfo" data-qid="${r.id}">${r.semInfo ? "X" : ""}</button></td>
+      <td class="l"><small>${esc(r.obs || "")}</small></td><td><button class="btn peq" data-qedit="${r.id}">Editar</button></td></tr>`;
+  }
+  h += `</tbody><tfoot><tr><td class="l" colspan="6">TOTAL (${ls.length} obra${ls.length > 1 ? "s" : ""})</td><td>${fmtR(tot("valor"))}</td><td>${fmtR(tot("medido"))}</td><td>${fmtR(tot("saldo"))}</td><td>${ls.filter(r => r.emExecucao).length}</td><td>${ls.filter(r => r.semInfo).length}</td><td colspan="2"></td></tr></tfoot></table></div>`;
+  return h;
+}
+function formQuadro(){
+  const r = Q.edit === "novo" ? { status:"ATIVO", emExecucao:true } : (Q.lista.find(x => x.id === Q.edit) || {});
+  const sis = r.obraId ? Q.sis[r.obraId] : null;
+  const v = x => x != null ? fmtNum(x) : "";
+  return `<div class="card" id="qForm"><h3>${Q.edit === "novo" ? "Nova obra no quadro" : "Editar — " + esc(r.contratante)}</h3><div class="form">
+    <label class="full">Contratante<input id="qfContratante" value="${esc(r.contratante || "")}"></label>
+    <label>Nº contrato<input id="qfNumero" value="${esc(r.numero || "")}"></label>
+    <label>CNPJ<input id="qfCnpj" value="${esc(r.cnpj || "")}"></label>
+    <label>Status<select id="qfStatus"><option value=""></option>${STATUS_QUADRO.map(s => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label>
+    <label>Data de início<input type="date" id="qfInicio" value="${r.inicio || ""}"></label>
+    <label>Data de término<input type="date" id="qfTermino" value="${r.termino || ""}"></label>
+    <label>Valor do contrato (R$)<input id="qfValor" inputmode="decimal" value="${v(r.valor)}"></label>
+    <label>Valor medições (R$)<input id="qfMedido" inputmode="decimal" value="${v(r.medido)}"></label>
+    <label>Obra no sistema (opcional)<select id="qfObra"><option value="">— não ligada —</option>${S.obras.filter(o => o.ativa !== false).map(o => `<option value="${o.id}" ${r.obraId === o.id ? "selected" : ""}>${esc(o.nome)}</option>`).join("")}</select></label>
+    <label class="full">Obs<input id="qfObs" value="${esc(r.obs || "")}"></label>
+    <label class="row" style="gap:6px"><input type="checkbox" id="qfExec" ${r.emExecucao ? "checked" : ""} style="width:auto"> Em execução</label>
+    <label class="row" style="gap:6px"><input type="checkbox" id="qfSemInfo" ${r.semInfo ? "checked" : ""} style="width:auto"> Sem informação atualizada</label>
+  </div>
+  ${sis ? `<p class="nota">No sistema: contrato <b>${fmtR(sis.valor)}</b>, medido <b>${fmtR(sis.medido)}</b> (${sis.n} medição(ões), a preço do contrato). <a href="#" id="qfUsarSis">Usar estes valores</a></p>` : ""}
+  <div class="row" style="margin-top:12px"><button class="btn pri" id="qfSalvar">Salvar</button><button class="btn" id="qfCancelar">Cancelar</button>
+    ${Q.edit !== "novo" ? `<button class="btn" id="qfExcluir" style="color:var(--erro)">Excluir do quadro</button>` : ""}</div></div>`;
+}
+async function salvarQuadro(){
+  const val = id => { const s = $(id).value.trim(); if (!s) return null; const x = num(s); if (x === null) throw new Error("Valor inválido: " + s); return x; };
+  let valor, medido;
+  try { valor = val("#qfValor"); medido = val("#qfMedido"); } catch(e){ toast(e.message, true); return; }
+  const contratante = $("#qfContratante").value.trim().toUpperCase();
+  if (!contratante){ toast("Informe o contratante.", true); return; }
+  const novo = Q.edit === "novo", id = novo ? uid() : Q.edit;
+  const ant = novo ? {} : (Q.lista.find(x => x.id === id) || {});
+  const d = { ...ant, contratante, numero:$("#qfNumero").value.trim(), cnpj:$("#qfCnpj").value.trim(), status:$("#qfStatus").value,
+    inicio:$("#qfInicio").value || null, termino:$("#qfTermino").value || null, valor, medido, obs:$("#qfObs").value.trim(),
+    obraId:$("#qfObra").value || null, emExecucao:$("#qfExec").checked, semInfo:$("#qfSemInfo").checked, atualizadoEm:agoraIso(), atualizadoPor:S.nome || "" };
+  delete d.id;
+  await store.set(COL_QUADRO, id, d);
+  if (novo) Q.lista.push({ id, ...d }); else Object.assign(ant, d);
+  qOrdena(Q.lista); Q.edit = null;
+  if (d.obraId && !(d.obraId in Q.sis)) await carregaSistemaQuadro();
+  renderQuadro(); toast("Quadro salvo.");
+}
+async function exportarQuadro(){
+  const ls = qFiltrada(); if (!ls.length){ toast("Nenhuma obra neste filtro.", true); return; }
+  const wb = new ExcelJS.Workbook(); wb.creator = "Obras LM";
+  const ws = wb.addWorksheet("Quadro de obras", { pageSetup:{ paperSize:9, orientation:"landscape", fitToPage:true, fitToWidth:1, fitToHeight:0, margins:{ left:.3, right:.3, top:.4, bottom:.4, header:.2, footer:.2 } },
+    views:[{ state:"frozen", ySplit:5 }] });
+  const W = [44,13,20,11,12,12,17,17,17,11,13,26]; W.forEach((w,k) => ws.getColumn(k+1).width = w);
+  const fino = { style:"thin", color:{ argb:"FF000000" } }, borda = { top:fino, left:fino, bottom:fino, right:fino };
+  const logoB64 = await (async () => { const b = await (await fetch("logo-lm.png")).blob(); return await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); }); })();
+  ws.addImage(wb.addImage({ base64:logoB64, extension:"png" }), { tl:{ col:.15, row:.15 }, ext:{ width:120, height:58 } });
+  ws.mergeCells("B1:J3"); Object.assign(ws.getCell("B1"), { value:"QUADRO DE OBRAS E SERVIÇOS EM EXECUÇÃO" });
+  ws.getCell("B1").font = { name:"Calibri", size:18, bold:true }; ws.getCell("B1").alignment = { horizontal:"center", vertical:"middle" };
+  ws.mergeCells("K2:L3"); ws.getCell("K2").value = "Data-Base: " + (Q.cfg.dataBase ? fmtBR(Q.cfg.dataBase) : fmtBR(hoje()));
+  ws.getCell("K2").font = { bold:true, size:12 }; ws.getCell("K2").alignment = { horizontal:"center", vertical:"middle" };
+  ws.getCell("K2").fill = { type:"pattern", pattern:"solid", fgColor:{ argb:"FFFFC000" } };
+  [1,2,3].forEach(r => ws.getRow(r).height = 20);
+  const cab = ["CONTRATANTE","Nº CONTRATO","CNPJ","STATUS","DATA DE INÍCIO","DATA DE TÉRMINO","VALOR DO CONTRATO","VALOR MEDIÇÕES","SALDO A FATURAR","EM EXECUÇÃO","SEM INFORMAÇÃO ATUALIZADA","OBS"];
+  const hr = ws.getRow(5); hr.values = cab; hr.height = 32;
+  hr.eachCell(c => { c.font = { bold:true, size:10 }; c.alignment = { horizontal:"center", vertical:"middle", wrapText:true }; c.border = borda; c.fill = { type:"pattern", pattern:"solid", fgColor:{ argb:"FF8DB4E2" } }; });
+  const MOE = '"R$" #,##0.00;-"R$" #,##0.00;""';
+  ls.forEach((r, k) => {
+    const row = ws.getRow(6 + k);
+    row.values = [r.contratante, r.numero || "", r.cnpj || "", r.status || "", r.inicio ? xlDate(r.inicio) : "", r.termino ? xlDate(r.termino) : "",
+      r.valor ?? "", r.medido ?? "", qSaldo(r) ?? "", r.emExecucao ? "X" : "", r.semInfo ? "X" : "", r.obs || ""];
+    row.eachCell({ includeEmpty:true }, (c, col) => {
+      if (col > 12) return;
+      c.border = borda; c.font = { size:10, bold: col >= 10 && col <= 11 };
+      c.alignment = { horizontal: col === 1 || col === 12 ? "left" : "center", vertical:"middle", wrapText: col === 1 || col === 12 };
+      if (col === 5 || col === 6) c.numFmt = "dd-mm-yyyy";
+      if (col >= 7 && col <= 9){ c.numFmt = MOE; c.alignment = { horizontal:"right", vertical:"middle" }; }
+    });
+  });
+  const tr = ws.getRow(6 + ls.length), n1 = 6, n2 = 5 + ls.length;
+  tr.values = ["VALOR TOTAL","","","","","", { formula:`SUM(G${n1}:G${n2})` }, { formula:`SUM(H${n1}:H${n2})` }, { formula:`SUM(I${n1}:I${n2})` },
+    { formula:`COUNTIF(J${n1}:J${n2},"X")` }, { formula:`COUNTIF(K${n1}:K${n2},"X")` }, ""];
+  tr.eachCell({ includeEmpty:true }, (c, col) => { if (col > 12) return; c.border = borda; c.font = { bold:true, size:10 }; c.fill = { type:"pattern", pattern:"solid", fgColor:{ argb:"FFF2F2F2" } };
+    c.alignment = { horizontal: col >= 7 && col <= 9 ? "right" : "center", vertical:"middle" }; if (col >= 7 && col <= 9) c.numFmt = MOE; });
+  ws.pageSetup.printTitlesRow = "5:5";
+  const buf = await wb.xlsx.writeBuffer();
+  baixar(new Blob([buf], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `LM - QUADRO DE OBRAS - ${(Q.cfg.dataBase || hoje()).split("-").reverse().join("-")}.xlsx`);
+  toast(`Quadro exportado (${ls.length} obras).`);
+}
+document.addEventListener("click", async ev => {
+  const t = ev.target.closest("button,a"); if (!t || !t.closest("#v-quadro")) return;
+  try {
+    if (t.dataset.qfiltro){ Q.filtro = t.dataset.qfiltro; renderQuadro(); return; }
+    if (t.dataset.qx){
+      const r = Q.lista.find(x => x.id === t.dataset.qid), k = t.dataset.qx, v = !r[k];
+      t.disabled = true;
+      await store.patch(COL_QUADRO, r.id, { [k]:v, atualizadoEm:agoraIso(), atualizadoPor:S.nome || "" });
+      r[k] = v; r.atualizadoEm = agoraIso(); renderQuadro(); return;
+    }
+    if (t.dataset.qedit){ Q.edit = t.dataset.qedit; renderQuadro(); $("#qForm")?.scrollIntoView({ behavior:"smooth", block:"start" }); return; }
+    if (t.id === "qNova"){ Q.edit = "novo"; renderQuadro(); $("#qForm")?.scrollIntoView({ behavior:"smooth", block:"start" }); return; }
+    if (t.id === "qfCancelar"){ Q.edit = null; renderQuadro(); return; }
+    if (t.id === "qfSalvar"){ t.disabled = true; await salvarQuadro(); return; }
+    if (t.id === "qfUsarSis"){
+      ev.preventDefault(); const s = Q.sis[$("#qfObra").value]; if (!s) return;
+      $("#qfValor").value = fmtNum(s.valor); $("#qfMedido").value = fmtNum(s.medido); toast("Valores do sistema copiados. Confira e salve."); return;
+    }
+    if (t.id === "qfExcluir"){
+      const r = Q.lista.find(x => x.id === Q.edit);
+      if (!confirm(`Excluir "${r.contratante}${r.numero ? " - " + r.numero : ""}" do quadro?`)) return;
+      await store.del(COL_QUADRO, r.id); Q.lista = Q.lista.filter(x => x !== r); Q.edit = null; renderQuadro(); toast("Obra excluída do quadro."); return;
+    }
+    if (t.id === "qExcel"){ await exportarQuadro(); return; }
+  } catch(e){ console.error(e); toast("Erro: " + e.message, true); t.disabled = false; }
+});
+document.addEventListener("input", ev => { if (ev.target.id === "qBusca"){ Q.busca = ev.target.value; $("#qTabela").innerHTML = tabelaQuadro(); } });
+document.addEventListener("change", async ev => {
+  if (ev.target.id === "qDataBase"){
+    try { await store.set(COL_QCFG, "geral", { ...Q.cfg, dataBase:ev.target.value || null }); Q.cfg.dataBase = ev.target.value || null; toast("Data-base salva."); }
+    catch(e){ toast("Erro: " + e.message, true); }
+  }
 });
 
 async function carregaObras(){ S.obras = await store.list(COL_OBRAS); }
