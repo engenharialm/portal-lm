@@ -156,7 +156,14 @@
   body.home nav,body.home #obraSel,body.home #voltaAcomp{display:none!important}
   #voltaAcomp{background:transparent;color:inherit;border:1px solid var(--lm-line2,#8fb0d9);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap}
   #voltaAcomp:hover{background:rgba(61,242,255,.1)}
-  .qobras{display:flex;gap:8px;flex-wrap:wrap}
+  .qmenu{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-bottom:10px}
+  .qcard{display:flex;flex-direction:column;gap:6px;text-align:left;padding:16px 18px;border-radius:14px;cursor:pointer;font:inherit;
+    background:var(--lm-glass,#fff);border:1px solid var(--lm-line,var(--borda));color:inherit;min-height:96px;transition:.15s}
+  .qcard:hover{border-color:var(--lm-cyan,var(--azul2));transform:translateY(-1px)}
+  .qcard b{font-size:15px}
+  .qcard span{font-size:13px;color:var(--lm-cyan,var(--azul2));font-weight:600}
+  .qcard small{font-size:12px;color:var(--lm-muted,var(--mut))}
+  .qcard.acomp{border-left:4px solid #E0A800}
   /* quadro de obras: colunas marcadas com X */
   .qx{width:34px;height:30px;border:1px solid var(--borda);border-radius:8px;background:transparent;color:inherit;font-weight:800;font-size:14px;cursor:pointer}
   .qx.on{background:var(--azul2);border-color:var(--azul2);color:#fff}
@@ -502,7 +509,7 @@
   <h1>Gestão de Obras</h1>
   <span id="modo"></span>
   <span class="sp"></span>
-  <button id="voltaAcomp" type="button" title="Voltar ao Acompanhamento de obras (quadro com todas as obras)">‹ Acompanhamento de obras</button>
+  <button id="voltaAcomp" type="button" title="Voltar à tela inicial (Acompanhamento de obras e lista de obras)">‹ Início</button>
   <select id="obraSel" aria-label="Obra"></select>
   <span id="acessoLbl"></span>
   <button id="temaBtn" type="button" title="Tema da tela: escuro, claro ou automático (segue o aparelho)"></button>
@@ -4239,8 +4246,16 @@ function renderQuadro(){
   const L = Q.lista, n = f => L.filter(f).length;
   const exec = L.filter(r => r.emExecucao);
   const doSis = S.obras.filter(o => o.ativa !== false).sort((a,b) => a.nome.localeCompare(b.nome));
-  let h = `<div class="card"><h3>Entrar numa obra do sistema</h3><div class="qobras">${doSis.length ? doSis.map(o => `<button class="btn peq" data-qentrar="${o.id}">${esc(o.nome)} ›</button>`).join("") : `<span class="nota">Nenhuma obra cadastrada.</span>`}</div>
-      <p class="nota">Cada engenheiro entra direto na sua obra com a senha da obra. Para cadastrar uma obra nova, entre em qualquer obra e use a aba <b>Cadastro</b>.</p></div>`;
+  // tela inicial: o acompanhamento é um cartão como as obras; só abre o quadro ao clicar
+  if (!Q.aberto){
+    el.innerHTML = `<div class="qmenu">
+      <button class="qcard acomp" data-qabrir><b>Acompanhamento de obras</b><span>Quadro de obras e serviços em execução</span>
+        <small>${L.length} obras · ${exec.length} em execução · ${n(r => r.semInfo)} sem informação atualizada</small></button>
+      ${doSis.map(o => `<button class="qcard" data-qentrar="${o.id}"><b>${esc(o.nome)}</b><span>Entrar na obra ›</span></button>`).join("")}</div>
+      <p class="nota">Cada engenheiro entra direto na sua obra com a senha da obra. Para cadastrar uma obra nova, entre em qualquer obra e use a aba <b>Cadastro</b>.</p>`;
+    setSavebar(""); return;
+  }
+  let h = `<div class="row" style="margin-bottom:10px"><button class="btn peq" id="qFechar">‹ Voltar</button></div>`;
   h += `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Acompanhamento de obras — quadro de obras e serviços em execução</h3>
       <span class="row"><label>Data-base <input type="date" id="qDataBase" value="${esc(Q.cfg.dataBase || "")}"></label>
       <button class="btn peq" id="qNova">+ Obra</button><button class="btn peq" id="qExcel">Exportar Excel</button></span></div>
@@ -4363,6 +4378,8 @@ document.addEventListener("click", async ev => {
   const t = ev.target.closest("button,a"); if (!t || !t.closest("#v-quadro")) return;
   try {
     if (t.dataset.qentrar){ await entrarObra(t.dataset.qentrar); return; }
+    if (t.hasAttribute("data-qabrir")){ Q.aberto = true; renderQuadro(); window.scrollTo(0, 0); return; }
+    if (t.id === "qFechar"){ Q.aberto = false; Q.edit = null; renderQuadro(); window.scrollTo(0, 0); return; }
     if (t.dataset.qfiltro){ Q.filtro = t.dataset.qfiltro; renderQuadro(); return; }
     if (t.dataset.qx){
       const r = Q.lista.find(x => x.id === t.dataset.qid), k = t.dataset.qx, v = !r[k];
@@ -4395,7 +4412,7 @@ document.addEventListener("change", async ev => {
 });
 
 function irAcompanhamento(){
-  S.home = true; document.body.classList.add("home");
+  S.home = true; Q.aberto = false; document.body.classList.add("home");
   $$(".view").forEach(v => v.classList.toggle("on", v.id === "v-quadro"));
   setSavebar(""); renderQuadro(); window.scrollTo(0, 0);
 }
