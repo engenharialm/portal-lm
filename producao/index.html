@@ -1692,13 +1692,14 @@ function renderContrato(){
     h += `<tr class="g"><td colspan="5" class="l">${esc(g.nome)}</td><td>${fmtR(g.total)}</td><td colspan="2"></td></tr>`;
     for (const i of g.itens){
       const q = acumAnterior(i.id, Infinity), p = i.qtd ? q / i.qtd : 0;
-      h += `<tr><td>${esc(i.item)}</td><td class="l">${esc(i.descricao)}${i.codigo ? `<br><small>${esc(i.codigo)}</small>` : ""}</td><td>${esc(i.un)}</td>
+      h += `<tr><td>${esc(i.item)}</td><td class="l">${esc(i.descricao)}${i.aditivo ? ` <span class="chip" style="--c:#7B5CFF" title="Item incluído por aditivo">aditivo</span>` : ""}${i.codigo ? `<br><small>${esc(i.codigo)}</small>` : ""}</td><td>${esc(i.un)}</td>
         <td>${fmtQ(i.qtd)}</td><td>${fmtR(i.pu)}</td><td>${fmtR(r2(i.qtd*i.pu))}</td><td>${q ? fmtQ(q) : "—"}</td>
         <td><div class="barra"><i style="width:${Math.min(100,p*100)}%" class="${p > 1.0001 ? "estouro" : ""}"></i></div><small>${q ? fmtP(p) : ""}</small></td></tr>`;
     }
   }
   h += `</tbody><tfoot><tr><td colspan="5" class="l">TOTAL</td><td>${fmtR(valorItens(c))}</td><td colspan="2"></td></tr></tfoot></table></div>
-    ${Math.abs(valorItens(c) - vc) >= 0.01 ? `<p class="nota">A soma dos itens (${fmtR(valorItens(c))}) difere do valor do contrato (${fmtR(vc)}) em ${fmtR(r2(valorItens(c)-vc))} — arredondamento da planilha.</p>` : ""}</div>`;
+    ${c.itens.some(i => i.aditivo) ? `<p class="nota">Inclui ${c.itens.filter(i => i.aditivo).length} item(ns) de aditivo, somando ${fmtR(r2(c.itens.filter(i => i.aditivo).reduce((s,i) => s + r2(i.qtd*i.pu), 0)))} além do valor original do contrato.</p>` : ""}
+    ${Math.abs(valorItens({ itens:c.itens.filter(i => !i.aditivo) }) - vc) >= 0.01 ? `<p class="nota">A soma dos itens (${fmtR(valorItens(c))}) difere do valor do contrato (${fmtR(vc)}) em ${fmtR(r2(valorItens(c)-vc))} — arredondamento da planilha.</p>` : ""}</div>`;
   el.innerHTML = h;
 }
 
