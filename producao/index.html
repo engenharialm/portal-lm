@@ -3094,6 +3094,15 @@ const proxUtil = (d, fer) => { while (!diaUtil(d, fer)) d = addDays(d, 1); retur
 function somaUteis(d, n, fer){ d = proxUtil(d, fer); let k = 1; while (k < n){ d = addDays(d, 1); if (diaUtil(d, fer)) k++; } return d; }
 function contaUteis(a, b, fer){ if (!a || !b || b < a) return 0; let n = 0, d = a; while (d <= b){ if (diaUtil(d, fer)) n++; d = addDays(d, 1); } return n; }
 const plano = () => S.ext.contrato?.planejamento || null;
+// tarefa → item do contrato. Tarefas vindas do MS Project por trecho de estaca guardam o item em itemId
+// (várias tarefas por item) e têm a própria quantidade; as da prévia usam o id do item como id da tarefa.
+const itemDaTarefa = t => S.ext.contrato?.itens?.find(i => i.id === (t.itemId || t.id)) || null;
+function itTarefa(t){
+  const it = itemDaTarefa(t);
+  if (!t.itemId && t.tipo !== "extra") return it;
+  if (t.qtd == null && !it) return null;
+  return { ...(it || {}), id:it?.id, qtd:t.qtd ?? null, un:t.un || it?.un || "" };
+}
 
 // prévia: janelas das metas pelo cronograma, serviços em sequência dentro da janela
 function gerarPrevia(c, inicio){
@@ -3162,7 +3171,7 @@ function renderPlanejamento(){
   const simT = Object.fromEntries(sim.tarefas.map(t => [t.id, t]));
   const fimProd = sim.tarefas.reduce((m,t) => t.fim > m ? t.fim : m, sim.inicio);
   const iniProd = sim.tarefas.reduce((m,t) => t.inicio < m ? t.inicio : m, sim.inicio);
-  const fimContr = c.prazoMeses ? addDays(addMeses(p.inicio, c.prazoMeses), -1) : null;
+  const fimContr = c.prazoMeses ? addDays(addMeses(c.inicio || p.inicio, c.prazoMeses), -1) : null;
   const duPlan = contaUteis(ini, fim, fer), duProd = contaUteis(iniProd, fimProd, fer);
   const estoura = fimContr && fimProd > fimContr;
   h += `<div class="card"><div class="kpi" style="margin-bottom:10px"><div><b>${fmtBR(proxUtil(ini, fer))}</b><span>Início (1º dia útil)</span></div><div><b>${fmtBR(fim)}</b><span>Término planejado</span></div>
@@ -3172,13 +3181,13 @@ function renderPlanejamento(){
       ${fimContr ? `<div><b>${fmtBR(fimContr)}</b><span>Término contratual (${c.prazoMeses} meses)</span></div>` : ""}
       <div><b>${p.tarefas.filter(t => t.tipo !== "meta").length}</b><span>Tarefas</span></div></div>
     ${estoura ? `<p class="nota neg" style="margin:0 0 10px">Pelas produções a obra termina depois do prazo contratual: aumente as equipes dos serviços em vermelho.</p>` : ""}
-    <div class="tbwrap"><table class="tb gantt"><thead><tr><th>EAP</th><th class="l">Tarefa</th><th>Início</th><th>Fim</th><th>Dias úteis</th><th>Quantidade<br><small>do item</small></th><th title="Produção de 1 equipe por dia (8 h), tirada da composição">Produção/dia<br><small>1 equipe</small></th><th>Equipes</th><th title="Produção/dia × equipes × dias úteis planejados">Total no prazo<br><small>prod × eq × dias</small></th><th title="Quantidade ÷ (produção × equipes)">Dias<br>necessários</th><th>% medido</th><th class="gt"><div class="regua">${regua}</div></th></tr></thead><tbody>`;
+    <div class="tbwrap"><table class="tb gantt"><thead><tr><th>EAP</th><th class="l">Tarefa</th><th>Início</th><th>Fim</th><th>Dias úteis</th><th>Quantidade<br><small>da tarefa</small></th><th title="Produção de 1 equipe por dia (8 h), tirada da composição">Produção/dia<br><small>1 equipe</small></th><th>Equipes</th><th title="Produção/dia × equipes × dias úteis planejados">Total no prazo<br><small>prod × eq × dias</small></th><th title="Quantidade ÷ (produção × equipes)">Dias<br>necessários</th><th title="% concluído informado no MS Project; nas tarefas da prévia, % medido do item">% concluído</th><th class="gt"><div class="regua">${regua}</div></th></tr></thead><tbody>`;
   for (const t of p.tarefas){
-    const it = c.itens.find(i => i.id === t.id);
-    const pm = it && it.qtd ? Math.min(1, acumAnterior(it.id, Infinity) / it.qtd) : null;
+    const it = itTarefa(t), itC = itemDaTarefa(t);
+    const pm = t.pct != null ? Math.min(1, t.pct / 100) : (!t.itemId && itC && itC.qtd ? Math.min(1, acumAnterior(itC.id, Infinity) / itC.qtd) : null);
     const meta = t.tipo === "meta";
     h += `<tr class="${meta ? "g" : ""}" data-tid="${esc(t.id)}"><td>${esc(t.wbs || "")}</td>
-      <td class="l" title="${esc((t.item ? t.item + " - " : "") + t.nome)}">${meta ? "" : `<small>${esc(t.item || "")}</small> `}${esc(t.nome)}${t.paralela ? ` <small>(contínua)</small>` : ""}</td>
+      <td class="l" title="${esc((t.item ? t.item + " - " : "") + t.nome + (t.equipe ? "\nEquipe: " + t.equipe : "") + (itC && t.itemId ? "\nItem do contrato: " + itC.descricao : ""))}">${meta ? "" : `<small>${esc(t.item || "")}</small> `}${esc(t.nome)}${t.paralela ? ` <small>(contínua)</small>` : ""}</td>
       <td>${meta || ro ? fmtBR(t.inicio) : `<input type="date" class="pi" value="${t.inicio}">`}</td>
       <td>${meta || ro ? fmtBR(t.fim) : `<input type="date" class="pf" value="${t.fim}">`}</td>
       <td>${contaUteis(t.inicio, t.fim, fer)}</td>${meta ? celMeta(t, simT[t.id], fer) : celProd(t, it, fer, ro)}<td>${pm !== null && pm > 0 ? fmtP(pm) : (meta ? "" : "—")}</td>
@@ -3195,7 +3204,7 @@ const prodDiaPadrao = it => it?.prodH ? Math.round(it.prodH * 8 * 100) / 100 : n
 const prodDiaTarefa = (t, it) => t.prodDia != null ? t.prodDia : prodDiaPadrao(it);
 function diasNecessarios(t, it){
   const pd = prodDiaTarefa(t, it), eq = Number(t.equipes) || 1;
-  return it && pd ? Math.max(1, Math.ceil(it.qtd / (pd * eq) - 1e-9)) : null;
+  return it && it.qtd && pd ? Math.max(1, Math.ceil(it.qtd / (pd * eq) - 1e-9)) : null;
 }
 // grupo: prazo pelas produções (da simulação) × planejado
 function celMeta(t, s, fer){
@@ -3223,7 +3232,7 @@ function ajustarPelasProducoes(p){
     if (!filhos.length) continue;
     let cursor = filhos.reduce((m,t) => t.inicio < m ? t.inicio : m, filhos[0].inicio);
     for (const t of filhos){
-      const it = c.itens.find(i => i.id === t.id), dn = diasNecessarios(t, it);
+      const it = itTarefa(t), dn = diasNecessarios(t, it);
       const dur = dn ?? Math.max(1, contaUteis(t.inicio, t.fim, fer));
       const ini = proxUtil(cursor, fer), fim = somaUteis(ini, dur, fer);
       if (ini !== t.inicio || fim !== t.fim) mudou++;
@@ -3242,7 +3251,7 @@ function syncPlano(){
     const a = tr.querySelector(".pi")?.value, b = tr.querySelector(".pf")?.value;
     if (a) t.inicio = a; if (b) t.fim = b < t.inicio ? t.inicio : b;
     const pp = tr.querySelector(".pp"), pe = tr.querySelector(".pe");
-    if (pp){ const it = S.ext.contrato.itens.find(i => i.id === t.id), v = num(pp.value);
+    if (pp){ const it = itTarefa(t), v = num(pp.value);
       t.prodDia = v === null || Math.abs(v - (prodDiaPadrao(it) || 0)) < 1e-6 ? null : v; if (t.prodDia === null) delete t.prodDia; }
     if (pe){ const v = parseInt(pe.value, 10); if (v > 1) t.equipes = v; else delete t.equipes; }
   });
@@ -3303,16 +3312,16 @@ function exportarMSProject(){
       `<WorkingTimes><WorkingTime><FromTime>08:00:00</FromTime><ToTime>12:00:00</ToTime></WorkingTime><WorkingTime><FromTime>13:00:00</FromTime><ToTime>17:00:00</ToTime></WorkingTime></WorkingTimes>`}</WeekDay>`).join("");
   const feriados = fer.map(f => `<WeekDay><DayType>0</DayType><DayWorking>0</DayWorking><TimePeriod><FromDate>${f}T00:00:00</FromDate><ToDate>${f}T23:59:00</ToDate></TimePeriod></WeekDay>`).join("");
   const tarefas = p.tarefas.map(t => {
-    const meta = t.tipo === "meta", it = c.itens.find(i => i.id === t.id);
-    const pm = it && it.qtd ? Math.round(Math.min(1, acumAnterior(it.id, Infinity) / it.qtd) * 100) : 0;
+    const meta = t.tipo === "meta", it = itTarefa(t);
+    const pm = t.pct != null ? Math.round(t.pct) : (it && it.qtd && !t.itemId ? Math.round(Math.min(1, acumAnterior(it.id, Infinity) / it.qtd) * 100) : 0);
     return `<Task><UID>${uid[t.id]}</UID><ID>${uid[t.id]}</ID><Name>${xmlEsc((t.item ? t.item + " - " : "") + t.nome)}</Name><Type>1</Type><IsNull>0</IsNull>
 <WBS>${xmlEsc(t.wbs || "")}</WBS><OutlineNumber>${xmlEsc(t.wbs || "")}</OutlineNumber><OutlineLevel>${meta ? 1 : 2}</OutlineLevel>
 <Start>${proxUtil(t.inicio, fer)}T08:00:00</Start><Finish>${t.fim}T17:00:00</Finish><Duration>${dur(t)}</Duration><DurationFormat>7</DurationFormat>
 <Summary>${meta ? 1 : 0}</Summary><Manual>0</Manual><Milestone>0</Milestone><PercentComplete>${meta ? 0 : pm}</PercentComplete>
 ${meta ? "" : `<ConstraintType>4</ConstraintType><ConstraintDate>${proxUtil(t.inicio, fer)}T08:00:00</ConstraintDate>`}
 ${(t.pred || []).filter(x => uid[x]).map(x => `<PredecessorLink><PredecessorUID>${uid[x]}</PredecessorUID><Type>1</Type><CrossProject>0</CrossProject><LinkLag>0</LinkLag><LagFormat>7</LagFormat></PredecessorLink>`).join("")}
-${it ? ext("188743731", it.item) + ext("188743734", it.un) + ext("188743767", it.qtd) + ext("188743768", r2(it.qtd * it.pu)) : ""}
-${it ? `<Notes>${xmlEsc(`${it.item} - ${it.descricao}\nQuantidade: ${fmtQ(it.qtd)} ${it.un} · Valor: ${fmtR(r2(it.qtd*it.pu))}${it.codigo ? "\nCódigo: " + it.codigo : ""}`)}</Notes>` : ""}</Task>`;
+${it && it.item ? ext("188743731", it.item) + ext("188743734", it.un) + ext("188743767", it.qtd || 0) + ext("188743768", r2((it.qtd || 0) * it.pu)) : ""}
+${it && it.item ? `<Notes>${xmlEsc(`${it.item} - ${it.descricao}\nQuantidade: ${fmtQ(it.qtd)} ${it.un} · Valor: ${fmtR(r2((it.qtd || 0)*it.pu))}${it.codigo ? "\nCódigo: " + it.codigo : ""}${t.equipe ? "\nEquipe: " + t.equipe : ""}`)}</Notes>` : ""}</Task>`;
   }).join("\n");
   const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Project xmlns="http://schemas.microsoft.com/project">
@@ -3365,8 +3374,10 @@ async function importarMSProject(arq){
 function programacaoDoPlano(seg, pp){
   const c = S.ext.contrato, p = pp || plano(); if (!p) return null;
   const fer = p.feriados || FERIADOS_PADRAO, out = [];
-  for (const t of p.tarefas.filter(x => x.tipo === "item")){
-    const it = c.itens.find(i => i.id === t.id); if (!it) continue;
+  const metaNome = id => p.tarefas.find(x => x.id === id)?.nome || "";
+  for (const t of p.tarefas.filter(x => x.tipo === "item" || (x.tipo === "extra" && x.qtd))){
+    const it = itTarefa(t); if (!it || !it.qtd) continue;
+    const itC = itemDaTarefa(t), porTrecho = !!(t.itemId || t.tipo === "extra");
     if (t.fim < seg || t.inicio > addDays(seg, 6)) continue;
     if (/km/i.test(it.un) || /^(h|mês|mes)$/i.test(it.un)) continue;   // transporte e administração não vão para a programação diária
     const dias = Math.max(1, contaUteis(t.inicio, t.fim, fer)), porDia = Math.round(it.qtd / dias * 100) / 100;
@@ -3376,7 +3387,8 @@ function programacaoDoPlano(seg, pp){
       let ult = t.fim; while (!diaUtil(ult, fer) && ult > t.inicio) ult = addDays(ult, -1);
       const d = diasEntre(seg, ult); if (d >= 0 && d < 7) prog[d] = it.qtd;
     } else for (let d = 0; d < 7; d++){ const dia = addDays(seg, d); if (dia >= t.inicio && dia <= t.fim && diaUtil(dia, fer)) prog[d] = porDia; }
-    if (Object.keys(prog).length) out.push({ id:uid(), grupo:c.itens.find(i => i.id === t.id).grupo, descricao:it.descricao.toUpperCase().slice(0, 90), unidade:it.un, itemContrato:it.id, prog });
+    if (Object.keys(prog).length) out.push({ id:uid(), grupo:(itC?.grupo || metaNome(t.grupo) || "SERVIÇOS").toUpperCase(),
+      descricao:(porTrecho ? `${t.nome}${metaNome(t.grupo) ? " — " + metaNome(t.grupo) : ""}` : it.descricao).toUpperCase().slice(0, 90), unidade:it.un, itemContrato:itC?.id || null, prog });
   }
   return out;
 }
@@ -3406,8 +3418,9 @@ document.addEventListener("click", async ev => {
       if (!novas){ toast("Esta obra ainda não tem planejamento (aba Planejamento).", true); return; }
       if (!novas.length){ toast("O planejamento não prevê serviços de produção nesta semana.", true); return; }
       syncDraftFromDom();
-      const jaTem = new Set(S.draft.map(a => a.itemContrato).filter(Boolean));
-      const add = novas.filter(a => !jaTem.has(a.itemContrato));
+      const chave = a => (a.itemContrato || "") + "|" + norm(a.descricao);
+      const jaTem = new Set(S.draft.map(chave));
+      const add = novas.filter(a => !jaTem.has(chave(a)));
       S.draft.push(...add); renderProg();
       toast(`${add.length} atividade(s) trazidas do planejamento${novas.length - add.length ? ` (${novas.length - add.length} já estavam na semana)` : ""}. Revise as quantidades e salve.`); return;
     }
