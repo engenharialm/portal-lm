@@ -99,7 +99,7 @@
   table.sem td.baixo{color:#C00000;font-weight:700}
   table.sem th.fds{background:#efefef}
   /* Obras */
-  .ob{display:grid;grid-template-columns:1.4fr 1fr 130px auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #eef1f6}
+  .ob{display:grid;grid-template-columns:1.4fr 1fr 130px auto auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #eef1f6}
   .ob input{padding:8px;border:1px solid var(--borda);border-radius:8px;min-width:0}
   .ob.inativa{opacity:.55}
   @media (max-width:700px){ .ob{grid-template-columns:1fr 1fr} }
@@ -164,6 +164,7 @@
   .qcard span{font-size:13px;color:var(--lm-cyan,var(--azul2));font-weight:600}
   .qcard small{font-size:12px;color:var(--lm-muted,var(--mut))}
   .qcard.acomp{border-left:4px solid #E0A800}
+  .qcard.config{border-style:dashed}
   /* quadro de obras: colunas marcadas com X */
   .qx{width:34px;height:30px;border:1px solid var(--borda);border-radius:8px;background:transparent;color:inherit;font-weight:800;font-size:14px;cursor:pointer}
   .qx.on{background:var(--azul2);border-color:var(--azul2);color:#fff}
@@ -524,7 +525,6 @@
   <button data-tab="medicoes">Medições</button>
   <button data-tab="recursos">Recursos</button>
   <button data-tab="compras">Compras</button>
-  <button data-tab="obras">Cadastro</button>
 </nav>
 </div>
 <main>
@@ -741,7 +741,7 @@ const somaSemana = m => { let s = 0, tem = false; for (let d = 0; d < 7; d++){ c
 /* --------------------------------- telas --------------------------------- */
 function semObra(){
   return `<div class="card vazio">Nenhuma obra cadastrada/selecionada.<br><br>
-    <button class="btn pri" onclick="document.querySelector('[data-tab=obras]').click()">Cadastrar obra</button></div>`;
+    <button class="btn pri" data-irconfig>Cadastrar obra</button></div>`;
 }
 
 function renderObraSel(){
@@ -1052,12 +1052,13 @@ function renderSemana(){
 function renderObras(){
   const el = $("#v-obras");
   const lista = [...S.obras].sort((a,b) => (b.ativa!==false) - (a.ativa!==false) || a.nome.localeCompare(b.nome));
-  let h = `<div class="card"><h3>Nova obra</h3>
+  let h = S.home ? `<div class="row" style="margin-bottom:10px"><button class="btn peq" id="cfgVoltar">‹ Voltar</button><h3 style="margin:0">Configurações</h3></div>` : "";
+  h += `<div class="card"><h3>Nova obra</h3>
     <div class="row"><input id="novaObra" placeholder="Nome da obra (ex.: CONSELHEIRO LAFAIETE)" style="flex:2;min-width:220px;padding:9px;border:1px solid var(--borda);border-radius:8px">
     <input id="novoEng" placeholder="Engenheiro responsável" style="flex:1;min-width:160px;padding:9px;border:1px solid var(--borda);border-radius:8px">
     <input id="novaSenha" placeholder="Senha da obra" style="width:150px;padding:9px;border:1px solid var(--borda);border-radius:8px">
     <button class="btn pri" id="addObra">Adicionar</button></div>
-    <p style="color:var(--mut);font-size:13px;margin:8px 0 0">Quem entrar com a senha da obra só vê e lança nela. A senha geral acessa todas.</p></div>`;
+    <p style="color:var(--mut);font-size:13px;margin:8px 0 0">Quem entrar com a senha da obra só vê e lança nela. A senha geral acessa todas. <b>Encerrar</b> tira a obra da tela inicial e guarda os dados; <b>Excluir</b> só funciona em obra sem nenhum lançamento.</p></div>`;
   h += `<div class="card"><h3>Obras cadastradas</h3>`;
   if (!lista.length) h += `<div class="vazio">Nenhuma obra ainda.</div>`;
   for (const o of lista){
@@ -1065,7 +1066,8 @@ function renderObras(){
       <input data-of="nome" value="${esc(o.nome)}"><input data-of="engenheiro" value="${esc(o.engenheiro||"")}" placeholder="Engenheiro">
       <input data-of="senha" value="${esc(o.senha||"")}" placeholder="Senha da obra">
       <button class="btn peq" data-salvaobra>Salvar</button>
-      <button class="btn peq" data-ativa>${o.ativa===false?"Reativar":"Encerrar"}</button></div>`;
+      <button class="btn peq" data-ativa title="${o.ativa===false ? "Volta a aparecer na tela inicial" : "Retira a obra da tela inicial, mantendo todos os dados"}">${o.ativa===false?"Reativar":"Encerrar"}</button>
+      <button class="btn peq" data-excluiobra style="color:var(--erro)" title="Apaga a obra (só se ela não tiver diário, contrato, medições nem requisições)">Excluir</button></div>`;
   }
   h += `</div><div class="card"><h3>Avanço físico/financeiro (cabeçalho do Excel)</h3>
     <p style="color:var(--mut);font-size:13px;margin:0 0 6px">Ex.: até JULHO/26 — previsto 83,11% e realizado 81,01%. O desvio é calculado sozinho.</p>`;
@@ -1084,14 +1086,12 @@ function renderObras(){
 
 function aplicaAcessoUI(){
   const geral = S.acesso?.geral;
-  $('[data-tab="obras"]').style.display = geral ? "" : "none";
   $("#voltaAcomp").style.display = geral ? "" : "none";
   $("#acessoLbl").textContent = geral ? "Acesso geral" : "Acesso da obra";
-  if (!geral && S.tab === "obras") $('[data-tab="diario"]').click();
 }
 function setSavebar(html){ $("#savebar").innerHTML = html; $("#savebar").style.display = html ? "flex" : "none"; }
 function render(){
-  if (S.home){ renderQuadro(); return; }
+  if (S.home){ if (Q.tela === "config") renderObras(); else renderQuadro(); return; }
   ({ diario:renderDiario, prog:renderProg, semana:renderSemana, obras:renderObras, contrato:renderContrato, plano:renderPlanejamento, medicoes:renderMedicoes, recursos:renderRecursos, compras:renderCompras })[S.tab]();
 }
 
@@ -4247,11 +4247,12 @@ function renderQuadro(){
   const exec = L.filter(r => r.emExecucao);
   const doSis = S.obras.filter(o => o.ativa !== false).sort((a,b) => a.nome.localeCompare(b.nome));
   // tela inicial: o acompanhamento é um cartão como as obras; só abre o quadro ao clicar
-  if (!Q.aberto){
+  if (Q.tela !== "quadro"){
     el.innerHTML = `<div class="qmenu">
       <button class="qcard acomp" data-qabrir><b>Acompanhamento de obras</b><span>Quadro de obras e serviços em execução</span>
         <small>${L.length} obras · ${exec.length} em execução · ${n(r => r.semInfo)} sem informação atualizada</small></button>
-      ${doSis.map(o => `<button class="qcard" data-qentrar="${o.id}"><b>${esc(o.nome)}</b><span>Entrar na obra ›</span></button>`).join("")}</div>
+      ${doSis.map(o => `<button class="qcard" data-qentrar="${o.id}"><b>${esc(o.nome)}</b><span>Entrar na obra ›</span></button>`).join("")}
+      <button class="qcard config" data-irconfig><b>⚙ Configurações</b><span>Obras, senhas e engenheiros</span><small>Criar, editar, encerrar ou excluir obras</small></button></div>
       <p class="nota">Cada engenheiro entra direto na sua obra com a senha da obra. Para cadastrar uma obra nova, entre em qualquer obra e use a aba <b>Cadastro</b>.</p>`;
     setSavebar(""); return;
   }
@@ -4378,8 +4379,8 @@ document.addEventListener("click", async ev => {
   const t = ev.target.closest("button,a"); if (!t || !t.closest("#v-quadro")) return;
   try {
     if (t.dataset.qentrar){ await entrarObra(t.dataset.qentrar); return; }
-    if (t.hasAttribute("data-qabrir")){ Q.aberto = true; renderQuadro(); window.scrollTo(0, 0); return; }
-    if (t.id === "qFechar"){ Q.aberto = false; Q.edit = null; renderQuadro(); window.scrollTo(0, 0); return; }
+    if (t.hasAttribute("data-qabrir")){ Q.tela = "quadro"; renderQuadro(); window.scrollTo(0, 0); return; }
+    if (t.id === "qFechar"){ Q.tela = null; Q.edit = null; renderQuadro(); window.scrollTo(0, 0); return; }
     if (t.dataset.qfiltro){ Q.filtro = t.dataset.qfiltro; renderQuadro(); return; }
     if (t.dataset.qx){
       const r = Q.lista.find(x => x.id === t.dataset.qid), k = t.dataset.qx, v = !r[k];
@@ -4411,8 +4412,31 @@ document.addEventListener("change", async ev => {
   }
 });
 
+function irConfig(){
+  S.home = true; Q.tela = "config"; document.body.classList.add("home");
+  $$(".view").forEach(v => v.classList.toggle("on", v.id === "v-obras"));
+  setSavebar(""); renderObras(); window.scrollTo(0, 0);
+}
+document.addEventListener("click", async ev => {
+  const t = ev.target.closest("button,a"); if (!t) return;
+  if (t.hasAttribute("data-irconfig")){ ev.preventDefault(); irConfig(); return; }
+  if (t.id === "cfgVoltar"){ irAcompanhamento(); return; }
+  if (t.hasAttribute("data-excluiobra")){
+    const id = t.closest(".ob").dataset.id, o = S.obras.find(x => x.id === id);
+    try {
+      t.disabled = true;
+      const [sem, c, meds, reqs] = await Promise.all([store.list(COL_SEMANAS, "obraId", id), store.get(COL_CONTR, id), store.list(COL_MED, "obraId", id), store.list(COL_REQ, "obraId", id)]);
+      const tem = [sem.length && `${sem.length} semana(s) de diário`, c && "contrato", meds.length && `${meds.length} medição(ões)`, reqs.length && `${reqs.length} requisição(ões)`].filter(Boolean);
+      if (tem.length){ toast(`"${o.nome}" tem ${tem.join(", ")}. Para retirar da tela inicial use Encerrar (os dados ficam guardados).`, true); t.disabled = false; return; }
+      if (!confirm(`Excluir a obra "${o.nome}"? Ela não tem nenhum lançamento. Isso não pode ser desfeito.`)){ t.disabled = false; return; }
+      await store.del(COL_OBRAS, id);
+      if (S.obraId === id){ S.obraId = ""; localStorage.removeItem("diarioLM_obra"); }
+      await carregaObras(); renderObraSel(); renderObras(); toast("Obra excluída.");
+    } catch(e){ console.error(e); toast("Erro: " + e.message, true); t.disabled = false; }
+  }
+});
 function irAcompanhamento(){
-  S.home = true; Q.aberto = false; document.body.classList.add("home");
+  S.home = true; Q.tela = null; document.body.classList.add("home");
   $$(".view").forEach(v => v.classList.toggle("on", v.id === "v-quadro"));
   setSavebar(""); renderQuadro(); window.scrollTo(0, 0);
 }
