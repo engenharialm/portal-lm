@@ -170,6 +170,7 @@
   .qx.on{background:var(--azul2);border-color:var(--azul2);color:#fff}
   .qx.on.si{background:#E0A800;border-color:#E0A800;color:#000}
   table.tb tr.qsi td:first-child{box-shadow:inset 3px 0 0 #E0A800}
+  table.tb tr.qfin td{opacity:.6}
   table.tb.quadro td{font-size:12px;white-space:nowrap}
   table.tb.quadro td.l{min-width:220px;white-space:normal}
   .pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}
@@ -1058,15 +1059,15 @@ function renderObras(){
     <input id="novoEng" placeholder="Engenheiro responsável" style="flex:1;min-width:160px;padding:9px;border:1px solid var(--borda);border-radius:8px">
     <input id="novaSenha" placeholder="Senha da obra" style="width:150px;padding:9px;border:1px solid var(--borda);border-radius:8px">
     <button class="btn pri" id="addObra">Adicionar</button></div>
-    <p style="color:var(--mut);font-size:13px;margin:8px 0 0">Quem entrar com a senha da obra só vê e lança nela. A senha geral acessa todas. <b>Encerrar</b> tira a obra da tela inicial e guarda os dados; <b>Excluir</b> só funciona em obra sem nenhum lançamento.</p></div>`;
+    <p style="color:var(--mut);font-size:13px;margin:8px 0 0">Quem entrar com a senha da obra só vê e lança nela. A senha geral acessa todas. <b>Finalizar</b> tira a obra da tela inicial e guarda os dados (obras finalizadas aparecem no fim da lista, marcadas); <b>Excluir</b> só funciona em obra sem nenhum lançamento.</p></div>`;
   h += `<div class="card"><h3>Obras cadastradas</h3>`;
   if (!lista.length) h += `<div class="vazio">Nenhuma obra ainda.</div>`;
   for (const o of lista){
     h += `<div class="ob ${o.ativa===false?"inativa":""}" data-id="${o.id}">
-      <input data-of="nome" value="${esc(o.nome)}"><input data-of="engenheiro" value="${esc(o.engenheiro||"")}" placeholder="Engenheiro">
+      <input data-of="nome" value="${esc(o.nome)}" title="${o.ativa===false ? "Obra finalizada" : ""}"><input data-of="engenheiro" value="${esc(o.engenheiro||"")}" placeholder="Engenheiro">
       <input data-of="senha" value="${esc(o.senha||"")}" placeholder="Senha da obra">
       <button class="btn peq" data-salvaobra>Salvar</button>
-      <button class="btn peq" data-ativa title="${o.ativa===false ? "Volta a aparecer na tela inicial" : "Retira a obra da tela inicial, mantendo todos os dados"}">${o.ativa===false?"Reativar":"Encerrar"}</button>
+      <button class="btn peq" data-ativa title="${o.ativa===false ? "Volta a aparecer na tela inicial" : "Marca a obra como finalizada: sai da tela inicial e os dados ficam guardados"}">${o.ativa===false?"Reativar":"Finalizar"}</button>
       <button class="btn peq" data-excluiobra style="color:var(--erro)" title="Apaga a obra (só se ela não tiver diário, contrato, medições nem requisições)">Excluir</button></div>`;
   }
   h += `</div><div class="card"><h3>Avanço físico/financeiro (cabeçalho do Excel)</h3>
@@ -4208,7 +4209,7 @@ document.addEventListener("click", async ev => {
    quadro_obras_cfg/geral: { dataBase }
    ====================================================================== */
 const COL_QUADRO = "quadro_obras", COL_QCFG = "quadro_obras_cfg";
-const STATUS_QUADRO = ["ATIVO","A INICIAR","PARALISADO","CONCLUÍDO"];
+const STATUS_QUADRO = ["ATIVO","A INICIAR","PARALISADO","FINALIZADA"];
 const Q = { lista:null, cfg:{}, filtro:"todas", busca:"", edit:null, sis:{} };
 const qSaldo = r => r.valor == null ? null : r2(r.valor - (r.medido || 0));
 const qOrdena = l => l.sort((a,b) => norm(a.contratante).localeCompare(norm(b.contratante)) || (a.numero || "").localeCompare(b.numero || ""));
@@ -4232,6 +4233,7 @@ function qFiltrada(){
     if (Q.filtro === "exec" && !r.emExecucao) return false;
     if (Q.filtro === "semInfo" && !r.semInfo) return false;
     if (Q.filtro === "iniciar" && r.status !== "A INICIAR") return false;
+    if (Q.filtro === "finalizada" && r.status !== "FINALIZADA") return false;
     return !b || [r.contratante, r.numero, r.cnpj, r.obs].some(x => norm(x).includes(b));
   });
 }
@@ -4267,7 +4269,7 @@ function renderQuadro(){
     <div><b>${n(r => r.semInfo)}</b><span>Sem informação atualizada</span></div>
     <div><b>${fmtR(r2(L.reduce((s,r) => s + (qSaldo(r) || 0), 0)))}</b><span>Saldo a faturar (todas)</span></div></div>`;
   if (Q.edit) h += formQuadro();
-  h += `<div class="ntchips">${[["todas","Todas",L.length],["exec","Em execução",exec.length],["semInfo","Sem informação atualizada",n(r => r.semInfo)],["iniciar","A iniciar",n(r => r.status === "A INICIAR")]]
+  h += `<div class="ntchips">${[["todas","Todas",L.length],["exec","Em execução",exec.length],["semInfo","Sem informação atualizada",n(r => r.semInfo)],["iniciar","A iniciar",n(r => r.status === "A INICIAR")],["finalizada","Finalizadas",n(r => r.status === "FINALIZADA")]]
       .map(([k,t,q]) => `<button data-qfiltro="${k}" class="${Q.filtro === k ? "on" : ""}">${t} (${q})</button>`).join("")}
     <input id="qBusca" placeholder="Buscar contratante, contrato, CNPJ..." value="${esc(Q.busca)}" style="flex:1;min-width:200px"></div>
     <div id="qTabela">${tabelaQuadro()}</div>`;
@@ -4282,7 +4284,7 @@ function tabelaQuadro(){
   for (const r of ls){
     const sis = r.obraId ? Q.sis[r.obraId] : null, sd = qSaldo(r);
     const difere = sis && (Math.abs(sis.valor - (r.valor || 0)) >= 0.01 || Math.abs(sis.medido - (r.medido || 0)) >= 0.01);
-    h += `<tr class="${r.semInfo ? "qsi" : ""}"><td class="l">${esc(r.contratante)}${r.obraId ? `<br><small>ligada ao sistema: ${esc(S.obras.find(o => o.id === r.obraId)?.nome || "?")}</small>` : ""}${r.atualizadoEm ? `<br><small>atualizado ${fmtBR(r.atualizadoEm.slice(0,10))}</small>` : ""}</td>
+    h += `<tr class="${r.semInfo ? "qsi" : ""} ${r.status === "FINALIZADA" ? "qfin" : ""}"><td class="l">${esc(r.contratante)}${r.obraId ? `<br><small>ligada ao sistema: ${esc(S.obras.find(o => o.id === r.obraId)?.nome || "?")}</small>` : ""}${r.atualizadoEm ? `<br><small>atualizado ${fmtBR(r.atualizadoEm.slice(0,10))}</small>` : ""}</td>
       <td>${esc(r.numero || "")}</td><td>${esc(r.cnpj || "")}</td><td>${esc(r.status || "")}</td><td>${r.inicio ? fmtBR(r.inicio) : ""}</td><td>${r.termino ? fmtBR(r.termino) : ""}</td>
       <td>${r.valor != null ? fmtR(r.valor) : ""}${difere ? `<br><small title="Calculado pelo contrato cadastrado no sistema">sistema: ${fmtR(sis.valor)}</small>` : ""}</td>
       <td>${r.medido != null ? fmtR(r.medido) : ""}${difere ? `<br><small title="Soma das ${sis.n} medição(ões) lançadas no sistema">sistema: ${fmtR(sis.medido)}</small>` : ""}</td>
@@ -4326,7 +4328,7 @@ async function salvarQuadro(){
   const ant = novo ? {} : (Q.lista.find(x => x.id === id) || {});
   const d = { ...ant, contratante, numero:$("#qfNumero").value.trim(), cnpj:$("#qfCnpj").value.trim(), status:$("#qfStatus").value,
     inicio:$("#qfInicio").value || null, termino:$("#qfTermino").value || null, valor, medido, obs:$("#qfObs").value.trim(),
-    obraId:$("#qfObra").value || null, emExecucao:$("#qfExec").checked, semInfo:$("#qfSemInfo").checked, atualizadoEm:agoraIso(), atualizadoPor:S.nome || "" };
+    obraId:$("#qfObra").value || null, emExecucao:$("#qfStatus").value === "FINALIZADA" ? false : $("#qfExec").checked, semInfo:$("#qfSemInfo").checked, atualizadoEm:agoraIso(), atualizadoPor:S.nome || "" };
   delete d.id;
   await store.set(COL_QUADRO, id, d);
   if (novo) Q.lista.push({ id, ...d }); else Object.assign(ant, d);
@@ -4427,7 +4429,7 @@ document.addEventListener("click", async ev => {
       t.disabled = true;
       const [sem, c, meds, reqs] = await Promise.all([store.list(COL_SEMANAS, "obraId", id), store.get(COL_CONTR, id), store.list(COL_MED, "obraId", id), store.list(COL_REQ, "obraId", id)]);
       const tem = [sem.length && `${sem.length} semana(s) de diário`, c && "contrato", meds.length && `${meds.length} medição(ões)`, reqs.length && `${reqs.length} requisição(ões)`].filter(Boolean);
-      if (tem.length){ toast(`"${o.nome}" tem ${tem.join(", ")}. Para retirar da tela inicial use Encerrar (os dados ficam guardados).`, true); t.disabled = false; return; }
+      if (tem.length){ toast(`"${o.nome}" tem ${tem.join(", ")}. Para retirar da tela inicial use Finalizar (os dados ficam guardados).`, true); t.disabled = false; return; }
       if (!confirm(`Excluir a obra "${o.nome}"? Ela não tem nenhum lançamento. Isso não pode ser desfeito.`)){ t.disabled = false; return; }
       await store.del(COL_OBRAS, id);
       if (S.obraId === id){ S.obraId = ""; localStorage.removeItem("diarioLM_obra"); }
