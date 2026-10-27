@@ -169,6 +169,7 @@
   .qx{width:34px;height:30px;border:1px solid var(--borda);border-radius:8px;background:transparent;color:inherit;font-weight:800;font-size:14px;cursor:pointer}
   .qx.on{background:var(--azul2);border-color:var(--azul2);color:#fff}
   .qx.on.si{background:#E0A800;border-color:#E0A800;color:#000}
+  .qx.on.fin{background:#2E9E5B;border-color:#2E9E5B;color:#fff}
   table.tb tr.qsi td:first-child{box-shadow:inset 3px 0 0 #E0A800}
   table.tb tr.qfin td{opacity:.6}
   table.tb.quadro td{font-size:12px;white-space:nowrap}
@@ -4262,7 +4263,7 @@ function renderQuadro(){
   h += `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Acompanhamento de obras — quadro de obras e serviços em execução</h3>
       <span class="row"><label>Data-base <input type="date" id="qDataBase" value="${esc(Q.cfg.dataBase || "")}"></label>
       <button class="btn peq" id="qNova">+ Obra</button><button class="btn peq" id="qExcel">Exportar Excel</button></span></div>
-    <p class="nota">Marque com X as obras <b>em execução</b> e as que estão <b>sem informação atualizada</b>. O saldo a faturar é calculado (valor do contrato − valor medido). Clique em <b>Editar</b> para corrigir valores; obras ligadas a uma obra do sistema mostram também o valor que o sistema calcula pelas medições lançadas.</p></div>`;
+    <p class="nota">Marque com X as obras <b>em execução</b>, as que estão <b>sem informação atualizada</b> e as <b>finalizadas</b>. O saldo a faturar é calculado (valor do contrato − valor medido). Clique em <b>Editar</b> para corrigir valores; obras ligadas a uma obra do sistema mostram também o valor que o sistema calcula pelas medições lançadas.</p></div>`;
   h += `<div class="kpi">
     <div><b>${exec.length}</b><span>Em execução</span></div>
     <div><b>${fmtR(r2(exec.reduce((s,r) => s + (qSaldo(r) || 0), 0)))}</b><span>Saldo a faturar das obras em execução</span></div>
@@ -4280,7 +4281,7 @@ function tabelaQuadro(){
   if (!ls.length) return `<div class="card vazio">Nenhuma obra neste filtro.</div>`;
   const tot = k => r2(ls.reduce((s,r) => s + (k === "saldo" ? (qSaldo(r) || 0) : (r[k] || 0)), 0));
   let h = `<div class="tbwrap"><table class="tb quadro"><thead><tr><th class="l">Contratante</th><th>Nº contrato</th><th>CNPJ</th><th>Status</th><th>Início</th><th>Término</th>
-    <th>Valor do contrato</th><th>Valor medições</th><th>Saldo a faturar</th><th title="Obra em execução">Em<br>execução</th><th title="Informação desatualizada ou incompleta">Sem info.<br>atualizada</th><th class="l">Obs</th><th></th></tr></thead><tbody>`;
+    <th>Valor do contrato</th><th>Valor medições</th><th>Saldo a faturar</th><th title="Obra em execução">Em<br>execução</th><th title="Informação desatualizada ou incompleta">Sem info.<br>atualizada</th><th title="Obra finalizada (marca o status FINALIZADA)">Finalizada</th><th class="l">Obs</th><th></th></tr></thead><tbody>`;
   for (const r of ls){
     const sis = r.obraId ? Q.sis[r.obraId] : null, sd = qSaldo(r);
     const difere = sis && (Math.abs(sis.valor - (r.valor || 0)) >= 0.01 || Math.abs(sis.medido - (r.medido || 0)) >= 0.01);
@@ -4291,9 +4292,10 @@ function tabelaQuadro(){
       <td class="${sd !== null && sd < 0 ? "neg" : ""}">${sd !== null ? fmtR(sd) : ""}</td>
       <td><button class="qx ${r.emExecucao ? "on" : ""}" data-qx="emExecucao" data-qid="${r.id}">${r.emExecucao ? "X" : ""}</button></td>
       <td><button class="qx si ${r.semInfo ? "on" : ""}" data-qx="semInfo" data-qid="${r.id}">${r.semInfo ? "X" : ""}</button></td>
+      <td><button class="qx fin ${r.status === "FINALIZADA" ? "on" : ""}" data-qx="finalizada" data-qid="${r.id}">${r.status === "FINALIZADA" ? "X" : ""}</button></td>
       <td class="l"><small>${esc(r.obs || "")}</small></td><td><span class="row" style="gap:6px;flex-wrap:nowrap">${r.obraId && S.obras.some(o => o.id === r.obraId) ? `<button class="btn pri peq" data-qentrar="${r.obraId}" title="Abrir esta obra no sistema">Entrar ›</button>` : ""}<button class="btn peq" data-qedit="${r.id}">Editar</button></span></td></tr>`;
   }
-  h += `</tbody><tfoot><tr><td class="l" colspan="6">TOTAL (${ls.length} obra${ls.length > 1 ? "s" : ""})</td><td>${fmtR(tot("valor"))}</td><td>${fmtR(tot("medido"))}</td><td>${fmtR(tot("saldo"))}</td><td>${ls.filter(r => r.emExecucao).length}</td><td>${ls.filter(r => r.semInfo).length}</td><td colspan="2"></td></tr></tfoot></table></div>`;
+  h += `</tbody><tfoot><tr><td class="l" colspan="6">TOTAL (${ls.length} obra${ls.length > 1 ? "s" : ""})</td><td>${fmtR(tot("valor"))}</td><td>${fmtR(tot("medido"))}</td><td>${fmtR(tot("saldo"))}</td><td>${ls.filter(r => r.emExecucao).length}</td><td>${ls.filter(r => r.semInfo).length}</td><td>${ls.filter(r => r.status === "FINALIZADA").length}</td><td colspan="2"></td></tr></tfoot></table></div>`;
   return h;
 }
 function formQuadro(){
@@ -4341,36 +4343,36 @@ async function exportarQuadro(){
   const wb = new ExcelJS.Workbook(); wb.creator = "Obras LM";
   const ws = wb.addWorksheet("Quadro de obras", { pageSetup:{ paperSize:9, orientation:"landscape", fitToPage:true, fitToWidth:1, fitToHeight:0, margins:{ left:.3, right:.3, top:.4, bottom:.4, header:.2, footer:.2 } },
     views:[{ state:"frozen", ySplit:5 }] });
-  const W = [44,13,20,11,12,12,17,17,17,11,13,26]; W.forEach((w,k) => ws.getColumn(k+1).width = w);
+  const W = [44,13,20,11,12,12,17,17,17,11,13,11,26]; W.forEach((w,k) => ws.getColumn(k+1).width = w);
   const fino = { style:"thin", color:{ argb:"FF000000" } }, borda = { top:fino, left:fino, bottom:fino, right:fino };
   const logoB64 = await (async () => { const b = await (await fetch("logo-lm.png")).blob(); return await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); }); })();
   ws.addImage(wb.addImage({ base64:logoB64, extension:"png" }), { tl:{ col:.15, row:.15 }, ext:{ width:120, height:58 } });
   ws.mergeCells("B1:J3"); Object.assign(ws.getCell("B1"), { value:"QUADRO DE OBRAS E SERVIÇOS EM EXECUÇÃO" });
   ws.getCell("B1").font = { name:"Calibri", size:18, bold:true }; ws.getCell("B1").alignment = { horizontal:"center", vertical:"middle" };
-  ws.mergeCells("K2:L3"); ws.getCell("K2").value = "Data-Base: " + (Q.cfg.dataBase ? fmtBR(Q.cfg.dataBase) : fmtBR(hoje()));
+  ws.mergeCells("K2:M3"); ws.getCell("K2").value = "Data-Base: " + (Q.cfg.dataBase ? fmtBR(Q.cfg.dataBase) : fmtBR(hoje()));
   ws.getCell("K2").font = { bold:true, size:12 }; ws.getCell("K2").alignment = { horizontal:"center", vertical:"middle" };
   ws.getCell("K2").fill = { type:"pattern", pattern:"solid", fgColor:{ argb:"FFFFC000" } };
   [1,2,3].forEach(r => ws.getRow(r).height = 20);
-  const cab = ["CONTRATANTE","Nº CONTRATO","CNPJ","STATUS","DATA DE INÍCIO","DATA DE TÉRMINO","VALOR DO CONTRATO","VALOR MEDIÇÕES","SALDO A FATURAR","EM EXECUÇÃO","SEM INFORMAÇÃO ATUALIZADA","OBS"];
+  const cab = ["CONTRATANTE","Nº CONTRATO","CNPJ","STATUS","DATA DE INÍCIO","DATA DE TÉRMINO","VALOR DO CONTRATO","VALOR MEDIÇÕES","SALDO A FATURAR","EM EXECUÇÃO","SEM INFORMAÇÃO ATUALIZADA","FINALIZADA","OBS"];
   const hr = ws.getRow(5); hr.values = cab; hr.height = 32;
   hr.eachCell(c => { c.font = { bold:true, size:10 }; c.alignment = { horizontal:"center", vertical:"middle", wrapText:true }; c.border = borda; c.fill = { type:"pattern", pattern:"solid", fgColor:{ argb:"FF8DB4E2" } }; });
   const MOE = '"R$" #,##0.00;-"R$" #,##0.00;""';
   ls.forEach((r, k) => {
     const row = ws.getRow(6 + k);
     row.values = [r.contratante, r.numero || "", r.cnpj || "", r.status || "", r.inicio ? xlDate(r.inicio) : "", r.termino ? xlDate(r.termino) : "",
-      r.valor ?? "", r.medido ?? "", qSaldo(r) ?? "", r.emExecucao ? "X" : "", r.semInfo ? "X" : "", r.obs || ""];
+      r.valor ?? "", r.medido ?? "", qSaldo(r) ?? "", r.emExecucao ? "X" : "", r.semInfo ? "X" : "", r.status === "FINALIZADA" ? "X" : "", r.obs || ""];
     row.eachCell({ includeEmpty:true }, (c, col) => {
-      if (col > 12) return;
-      c.border = borda; c.font = { size:10, bold: col >= 10 && col <= 11 };
-      c.alignment = { horizontal: col === 1 || col === 12 ? "left" : "center", vertical:"middle", wrapText: col === 1 || col === 12 };
+      if (col > 13) return;
+      c.border = borda; c.font = { size:10, bold: col >= 10 && col <= 12 };
+      c.alignment = { horizontal: col === 1 || col === 13 ? "left" : "center", vertical:"middle", wrapText: col === 1 || col === 13 };
       if (col === 5 || col === 6) c.numFmt = "dd-mm-yyyy";
       if (col >= 7 && col <= 9){ c.numFmt = MOE; c.alignment = { horizontal:"right", vertical:"middle" }; }
     });
   });
   const tr = ws.getRow(6 + ls.length), n1 = 6, n2 = 5 + ls.length;
   tr.values = ["VALOR TOTAL","","","","","", { formula:`SUM(G${n1}:G${n2})` }, { formula:`SUM(H${n1}:H${n2})` }, { formula:`SUM(I${n1}:I${n2})` },
-    { formula:`COUNTIF(J${n1}:J${n2},"X")` }, { formula:`COUNTIF(K${n1}:K${n2},"X")` }, ""];
-  tr.eachCell({ includeEmpty:true }, (c, col) => { if (col > 12) return; c.border = borda; c.font = { bold:true, size:10 }; c.fill = { type:"pattern", pattern:"solid", fgColor:{ argb:"FFF2F2F2" } };
+    { formula:`COUNTIF(J${n1}:J${n2},"X")` }, { formula:`COUNTIF(K${n1}:K${n2},"X")` }, { formula:`COUNTIF(L${n1}:L${n2},"X")` }, ""];
+  tr.eachCell({ includeEmpty:true }, (c, col) => { if (col > 13) return; c.border = borda; c.font = { bold:true, size:10 }; c.fill = { type:"pattern", pattern:"solid", fgColor:{ argb:"FFF2F2F2" } };
     c.alignment = { horizontal: col >= 7 && col <= 9 ? "right" : "center", vertical:"middle" }; if (col >= 7 && col <= 9) c.numFmt = MOE; });
   ws.pageSetup.printTitlesRow = "5:5";
   const buf = await wb.xlsx.writeBuffer();
@@ -4385,10 +4387,14 @@ document.addEventListener("click", async ev => {
     if (t.id === "qFechar"){ Q.tela = null; Q.edit = null; renderQuadro(); window.scrollTo(0, 0); return; }
     if (t.dataset.qfiltro){ Q.filtro = t.dataset.qfiltro; renderQuadro(); return; }
     if (t.dataset.qx){
-      const r = Q.lista.find(x => x.id === t.dataset.qid), k = t.dataset.qx, v = !r[k];
+      const r = Q.lista.find(x => x.id === t.dataset.qid), k = t.dataset.qx;
+      // finalizada = status FINALIZADA (e sai de em execução); desmarcar volta para ATIVO
+      const upd = k === "finalizada"
+        ? (r.status === "FINALIZADA" ? { status:"ATIVO" } : { status:"FINALIZADA", emExecucao:false })
+        : { [k]:!r[k] };
       t.disabled = true;
-      await store.patch(COL_QUADRO, r.id, { [k]:v, atualizadoEm:agoraIso(), atualizadoPor:S.nome || "" });
-      r[k] = v; r.atualizadoEm = agoraIso(); renderQuadro(); return;
+      await store.patch(COL_QUADRO, r.id, { ...upd, atualizadoEm:agoraIso(), atualizadoPor:S.nome || "" });
+      Object.assign(r, upd); r.atualizadoEm = agoraIso(); renderQuadro(); return;
     }
     if (t.dataset.qedit){ Q.edit = t.dataset.qedit; renderQuadro(); $("#qForm")?.scrollIntoView({ behavior:"smooth", block:"start" }); return; }
     if (t.id === "qNova"){ Q.edit = "novo"; renderQuadro(); $("#qForm")?.scrollIntoView({ behavior:"smooth", block:"start" }); return; }
