@@ -527,6 +527,7 @@
   <button data-tab="medicoes">Medições</button>
   <button data-tab="recursos">Recursos</button>
   <button data-tab="compras">Compras</button>
+  <button data-tab="custos">Custos</button>
 </nav>
 </div>
 <main>
@@ -538,6 +539,7 @@
   <section id="v-medicoes" class="view"></section>
   <section id="v-recursos" class="view"></section>
   <section id="v-compras" class="view"></section>
+  <section id="v-custos" class="view"></section>
   <section id="v-obras" class="view"></section>
   <section id="v-quadro" class="view"></section>
 </main>
@@ -1094,7 +1096,7 @@ function aplicaAcessoUI(){
 function setSavebar(html){ $("#savebar").innerHTML = html; $("#savebar").style.display = html ? "flex" : "none"; }
 function render(){
   if (S.home){ if (Q.tela === "config") renderObras(); else renderQuadro(); return; }
-  ({ diario:renderDiario, prog:renderProg, semana:renderSemana, obras:renderObras, contrato:renderContrato, plano:renderPlanejamento, medicoes:renderMedicoes, recursos:renderRecursos, compras:renderCompras })[S.tab]();
+  ({ diario:renderDiario, prog:renderProg, semana:renderSemana, obras:renderObras, contrato:renderContrato, plano:renderPlanejamento, medicoes:renderMedicoes, recursos:renderRecursos, compras:renderCompras, custos:renderCustos })[S.tab]();
 }
 
 /* ------------------------------- exportação ------------------------------- */
@@ -4218,6 +4220,367 @@ document.addEventListener("click", async ev => {
     }
   } catch(e){ console.error(e); toast("Erro: " + e.message, true); }
 });
+
+/* ======================================================================
+   CUSTOS — custeio da obra no plano de contas do modelo "Resultado e Custeio" da LM
+   obra_custos/{id}:   { obraId, comp:"AAAA-MM", data, conta, descricao, fornecedor, nf, valor,
+                         reembolsavel, itemContrato, origem, criadoEm, por }
+   obra_custeio/{obra}: { inicio:"AAAA-MM", encDir, encInd, manutEq, imposto, admCentral (em %),
+                          prateleira:{comp:valor}, medicaoManual:{comp:valor} }
+   Mão de obra é lançada sem encargos (o custeio soma os encargos); manutenção de equipamentos
+   soma o % sobre a locação direta; o faturamento vem das medições da obra (mês do fim do período).
+   ====================================================================== */
+const COL_CUSTO = "obra_custos", COL_CUSTEIO = "obra_custeio";
+const PLANO_CUSTEIO = [
+  ["1","MÃO DE OBRA"],["1.1","DIRETA"],["1.2","INDIRETA"],
+  ["2","EQUIPAMENTOS"],["2.1","LOCAÇÃO DIRETA"],["2.2","LOCAÇÃO INDIRETA"],["2.3","COMBUSTÍVEL"],
+  ["3","INSUMOS"],["3.1","BRITA"],["3.2","AREIA"],["3.3","CONCRETO"],["3.4","OUTROS MATERIAIS"],
+  ["4","SUBEMPREITEIRO"],["4.1","DRENAGEM"],["4.2","SINALIZAÇÃO"],["4.3","CARRETEIRO"],["4.4","OUTROS SUBEMPREITEIROS"],
+  ["5","INDIRETOS"],["5.1","LOCAÇÕES"],["5.1.1","ALOJAMENTO OPERACIONAL"],["5.1.2","ALOJAMENTO ADM."],["5.1.3","CANTEIRO"],
+  ["5.1.3.1","ÁREA EXTERNA CANTEIRO"],["5.1.3.2","CONTAINER - ADM"],["5.1.3.3","CONTAINER - ALMOX."],["5.1.3.4","BANHEIRO QUÍMICO"],
+  ["5.2","ALIMENTAÇÃO"],["5.2.1","CAFÉ"],["5.2.2","ALMOÇO"],["5.2.3","JANTA"],
+  ["5.3","MANUTENÇÃO"],["5.3.1","EQUIPAMENTOS"],["5.3.2","CANTEIRO"],["5.3.2.1","IMPRESSOS E INFORMÁTICA"],["5.3.2.2","MATERIAIS DE EXPEDIENTE E LIMPEZA"],
+  ["5.3.2.3","MATERIAIS DE CONSTRUÇÃO"],["5.3.2.4","INTERNET"],["5.3.2.5","RÁDIO DE COMUNICAÇÃO (MANUTENÇÃO)"],["5.3.2.6","BENS DE PEQUENO VALOR"],["5.3.2.7","LABORATÓRIO"],
+  ["5.4","MOBILIZAÇÃO/DESMOBILIZAÇÃO"],["5.4.1","MÃO DE OBRA"],["5.4.2","EQUIPAMENTOS"],
+  ["5.5","CONSTRUÇÃO CANTEIRO"],["5.5.1","SERVIÇOS"],["5.5.2","COMPRA TENDA"],
+  ["5.6","SEGURANÇA"],["5.6.1","SINALIZAÇÃO DE OBRA"],["5.6.2","EPI E EPC"]
+].map(([cod, nome]) => ({ cod, nome }));
+const CUSTEIO_PADRAO = { encDir:102.34, encInd:75.14, manutEq:15, imposto:10, admCentral:1 };
+const contaPlano = cod => PLANO_CUSTEIO.find(c => c.cod === cod);
+const filhosConta = cod => PLANO_CUSTEIO.filter(c => c.cod.startsWith(cod + ".") && c.cod.split(".").length === cod.split(".").length + 1);
+const contaFolha = cod => !filhosConta(cod).length;
+const nomeConta = cod => { const c = contaPlano(cod); return c ? `${c.cod} ${c.nome}` : cod; };
+const compBR = c => { const [y, m] = c.split("-"); return `${MESES[+m - 1]}/${y.slice(2)}`; };
+const somaComp = (c, n) => { const d = new Date(+c.slice(0,4), +c.slice(5,7) - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
+S.cus = { obraId:null, lista:[], cfg:null };
+S.cusMes = hoje().slice(0, 7);
+S.cusEdit = null;
+
+async function carregaCustos(force){
+  if (!force && S.cus.obraId === S.obraId) return;
+  const id = S.obraId;
+  const [lista, cfg] = await Promise.all([store.list(COL_CUSTO, "obraId", id), store.get(COL_CUSTEIO, id)]);
+  S.cus = { obraId:id, lista:lista.sort((a,b) => (a.data || "").localeCompare(b.data || "")), cfg:cfg || {} };
+}
+const cfgCusteio = () => ({ ...CUSTEIO_PADRAO, ...(S.cus.cfg || {}) });
+// valor de uma conta num mês (folhas: lançamentos; M.O. com encargos; manutenção de equipamentos com % da locação)
+function valorConta(cod, comp, ix){
+  const cfg = cfgCusteio();
+  if (!contaFolha(cod)) return r2(filhosConta(cod).reduce((s,f) => s + valorConta(f.cod, comp, ix), 0));
+  const lanc = r2((ix[comp + "|" + cod] || 0));
+  if (cod === "1.1") return r2(lanc * (1 + cfg.encDir / 100));
+  if (cod === "1.2") return r2(lanc * (1 + cfg.encInd / 100));
+  if (cod === "5.3.1") return r2(lanc + valorConta("2.1", comp, ix) * cfg.manutEq / 100);
+  return lanc;
+}
+function indiceCustos(){
+  const ix = {};
+  for (const l of S.cus.lista){ const k = l.comp + "|" + l.conta; ix[k] = (ix[k] || 0) + (Number(l.valor) || 0); }
+  return ix;
+}
+// medição do mês: medições do sistema pelo mês do fim do período + medição lançada à mão
+function medicaoMes(comp){
+  const c = S.ext.contrato, cfg = S.cus.cfg || {};
+  const sis = c ? r2(S.ext.meds.filter(m => (m.fim || "").slice(0,7) === comp).reduce((s,m) => s + valorMed(m, c), 0)) : 0;
+  return r2(sis + (Number(cfg.medicaoManual?.[comp]) || 0));
+}
+function mesesCusteio(){
+  const atual = hoje().slice(0, 7), comps = S.cus.lista.map(l => l.comp).filter(Boolean).sort();
+  const ini = S.cus.cfg?.inicio || comps[0] || atual;
+  const fim = [atual, comps[comps.length - 1] || atual].sort().pop();
+  const out = []; for (let c = ini; c <= fim && out.length < 120; c = somaComp(c, 1)) out.push(c);
+  return out;
+}
+function resultadoMes(comp, ix){
+  const cfg = cfgCusteio(), v = cod => valorConta(cod, comp, ix);
+  const medicao = medicaoMes(comp), prateleira = Number(S.cus.cfg?.prateleira?.[comp]) || 0;
+  const dir = { mo:v("1.1"), eq:r2(v("2.1") + v("2.3")), ins:v("3"), sub:v("4") };
+  const ind = { mo:v("1.2"), eq:v("2.2"), ind:v("5") };
+  const custoDir = r2(dir.mo + dir.eq + dir.ins + dir.sub), custoInd = r2(ind.mo + ind.eq + ind.ind);
+  const imposto = r2(medicao * cfg.imposto / 100), adm = r2(medicao * cfg.admCentral / 100);
+  const fat = r2(medicao + prateleira), custo = r2(custoDir + custoInd);
+  return { medicao, prateleira, fat, dir, ind, custoDir, custoInd, custo, imposto, adm, resultado:r2(fat - custo - imposto - adm) };
+}
+
+function renderCustos(){
+  const el = $("#v-custos");
+  if (!S.obraId){ el.innerHTML = semObra(); setSavebar(""); return; }
+  if (S.cus.obraId !== S.obraId || S.ext.obraId !== S.obraId){
+    el.innerHTML = `<div class="card vazio">Carregando...</div>`; setSavebar("");
+    Promise.all([carregaCustos(), loadExtras()]).then(() => { if (S.tab === "custos") renderCustos(); })
+      .catch(e => { console.error(e); el.innerHTML = `<div class="card vazio">Erro ao carregar: ${esc(e.message)}</div>`; });
+    return;
+  }
+  const ix = indiceCustos(), mes = S.cusMes, doMes = S.cus.lista.filter(l => l.comp === mes);
+  const g = ehGeral();
+  let h = `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Custos — ${esc(obraAtual().nome)}</h3>
+      <span class="row"><button class="btn pri peq" id="cusNovo">+ Lançar gasto</button>${g ? `<button class="btn peq" id="cusExcel" title="Custeio e Resultado no modelo da LM">Custeio e Resultado (Excel)</button>` : ""}</span></div>
+    <p class="nota">Lance todo gasto da obra na conta do custeio — compras de planilha ou não (marque <b>reembolsável</b> só quando for item medido). Mão de obra: lance o valor da folha <b>sem encargos</b>; o custeio soma ${fmtNum(cfgCusteio().encDir)}% (direta) e ${fmtNum(cfgCusteio().encInd)}% (indireta).</p></div>`;
+  if (S.cusEdit) h += formCusto();
+  h += `<div class="weekbar"><button data-cusmes="-1" aria-label="Mês anterior">‹</button><span class="wk">Competência ${compBR(mes)}</span><button data-cusmes="1" aria-label="Próximo mês">›</button></div>`;
+  // lançamentos do mês
+  const tot = r2(doMes.reduce((s,l) => s + (Number(l.valor) || 0), 0));
+  h += `<div class="card"><h3>Lançamentos de ${compBR(mes)} — ${fmtR(tot)}</h3>`;
+  if (!doMes.length) h += `<div class="vazio">Nenhum gasto lançado neste mês.</div>`;
+  else {
+    h += `<div class="tbwrap"><table class="tb"><thead><tr><th>Data</th><th class="l">Conta</th><th class="l">Descrição</th><th class="l">Fornecedor</th><th>NF</th><th>Valor</th><th>Reemb.</th><th></th></tr></thead><tbody>`;
+    for (const l of doMes) h += `<tr><td>${fmtBR(l.data)}</td><td class="l"><small>${esc(nomeConta(l.conta))}</small></td><td class="l">${esc(l.descricao || "")}${l.origem && l.origem !== "manual" ? ` <small>(${esc(l.origem)})</small>` : ""}</td>
+      <td class="l">${esc(l.fornecedor || "")}</td><td>${esc(l.nf || "")}</td><td>${fmtR(l.valor)}</td><td>${l.reembolsavel ? "sim" : ""}</td>
+      <td><button class="btn peq" data-cusedit="${l.id}">Editar</button></td></tr>`;
+    h += `</tbody></table></div>`;
+  }
+  h += `</div>`;
+  // custeio do mês (árvore com o que foi calculado)
+  h += `<div class="card"><h3>Custeio de ${compBR(mes)}</h3><div class="tbwrap"><table class="tb"><tbody>`;
+  for (const c of PLANO_CUSTEIO){
+    const v = valorConta(c.cod, mes, ix), niv = c.cod.split(".").length;
+    if (niv > 2 && !v) continue;
+    h += `<tr class="${niv === 1 ? "g" : ""}"><td class="l" style="padding-left:${8 + (niv - 1) * 14}px">${esc(c.cod)} ${esc(c.nome)}</td><td>${v ? fmtR(v) : "—"}</td></tr>`;
+  }
+  h += `</tbody><tfoot><tr><td class="l">CUSTO DO MÊS</td><td>${fmtR(r2(["1","2","3","4","5"].reduce((s,c) => s + valorConta(c, mes, ix), 0)))}</td></tr></tfoot></table></div></div>`;
+  if (g) h += cardResultado(ix);
+  el.innerHTML = h; setSavebar("");
+}
+function cardResultado(ix){
+  const ms = mesesCusteio(), cfg = cfgCusteio();
+  const R = ms.map(c => resultadoMes(c, ix));
+  let acR = 0, acF = 0;
+  const lin = (rot, f, cls = "", edit) => `<tr class="${cls}"><td class="l">${rot}</td>${R.map((r,k) => `<td>${edit ? `<input class="cusin" data-cusin="${edit}" data-comp="${ms[k]}" inputmode="decimal" value="${(Number(S.cus.cfg?.[edit]?.[ms[k]]) || 0) ? fmtNum(S.cus.cfg[edit][ms[k]]) : ""}" placeholder="0" style="width:96px">` : f(r, k)}</td>`).join("")}</tr>`;
+  let h = `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Resultado da obra</h3>
+      <span class="row"><label>Início do custeio <input type="month" id="cusIni" value="${esc(S.cus.cfg?.inicio || ms[0])}"></label></span></div>
+    <div class="tbwrap" style="margin-top:10px"><table class="tb"><thead><tr><th class="l">Relatório financeiro</th>${ms.map(c => `<th>${compBR(c)}</th>`).join("")}</tr></thead><tbody>`;
+  h += lin("1 - FATURAMENTO", r => fmtR(r.fat), "g");
+  h += lin("1.1 - Medição (sistema)", r => fmtR(r.medicao - (Number(S.cus.cfg?.medicaoManual?.[ms[R.indexOf(r)]]) || 0)));
+  h += lin("1.1 - Medição lançada à mão", null, "", "medicaoManual");
+  h += lin("1.2 - Prateleira", null, "", "prateleira");
+  h += lin("2 - CUSTO", r => fmtR(r.custo), "g");
+  h += lin("2.1 - Custo direto", r => fmtR(r.custoDir));
+  h += lin("&nbsp;&nbsp;M.O. direta", r => fmtR(r.dir.mo));
+  h += lin("&nbsp;&nbsp;Equipamentos diretos (loc. + comb.)", r => fmtR(r.dir.eq));
+  h += lin("&nbsp;&nbsp;Insumos", r => fmtR(r.dir.ins));
+  h += lin("&nbsp;&nbsp;Subempreiteiros", r => fmtR(r.dir.sub));
+  h += lin("2.2 - Custo indireto", r => fmtR(r.custoInd));
+  h += lin("&nbsp;&nbsp;M.O. indireta", r => fmtR(r.ind.mo));
+  h += lin("&nbsp;&nbsp;Equipamentos indiretos", r => fmtR(r.ind.eq));
+  h += lin("&nbsp;&nbsp;Indiretos", r => fmtR(r.ind.ind));
+  h += lin(`3 - Imposto (${fmtNum(cfg.imposto)}% da medição)`, r => fmtR(r.imposto));
+  h += lin(`4 - Administração central (${fmtNum(cfg.admCentral)}%)`, r => fmtR(r.adm));
+  h += lin("RESULTADO (R$)", r => `<b class="${r.resultado < 0 ? "neg" : ""}">${fmtR(r.resultado)}</b>`, "g");
+  h += lin("RESULTADO ACUMULADO (R$)", r => { acR = r2(acR + r.resultado); return `<b class="${acR < 0 ? "neg" : ""}">${fmtR(acR)}</b>`; });
+  h += lin("RESULTADO (%)", r => r.fat ? fmtP(r.resultado / r.fat) : "—");
+  acR = 0;
+  h += lin("RESULTADO ACUMULADO (%)", r => { acR = r2(acR + r.resultado); acF = r2(acF + r.fat); return acF ? fmtP(acR / acF) : "—"; });
+  h += `</tbody></table></div>
+    <div class="form" style="margin-top:12px">
+      <label>Encargos M.O. direta (%)<input class="cuscfg" data-k="encDir" inputmode="decimal" value="${fmtNum(cfg.encDir)}"></label>
+      <label>Encargos M.O. indireta (%)<input class="cuscfg" data-k="encInd" inputmode="decimal" value="${fmtNum(cfg.encInd)}"></label>
+      <label>Manutenção de equip. (% da locação direta)<input class="cuscfg" data-k="manutEq" inputmode="decimal" value="${fmtNum(cfg.manutEq)}"></label>
+      <label>Imposto (% da medição)<input class="cuscfg" data-k="imposto" inputmode="decimal" value="${fmtNum(cfg.imposto)}"></label>
+      <label>Administração central (%)<input class="cuscfg" data-k="admCentral" inputmode="decimal" value="${fmtNum(cfg.admCentral)}"></label>
+    </div>
+    <p class="nota">Medição (sistema) = medições da aba Medições pelo mês do fim do período, a preço do contrato. Use “lançada à mão” para medições fora do sistema (ex.: reajuste) e “prateleira” para serviço executado ainda não medido. Os campos salvam ao sair.</p></div>`;
+  return h;
+}
+function formCusto(){
+  const l = S.cusEdit === "novo" ? { data:hoje(), reembolsavel:false } : (S.cus.lista.find(x => x.id === S.cusEdit) || {});
+  const folhas = PLANO_CUSTEIO.filter(c => contaFolha(c.cod));
+  const grupos = PLANO_CUSTEIO.filter(c => !c.cod.includes("."));
+  const itens = S.ext.contrato?.itens || [];
+  return `<div class="card" id="cusForm"><h3>${S.cusEdit === "novo" ? "Lançar gasto" : "Editar gasto"}</h3><div class="form">
+    <label>Data<input type="date" id="cfData" value="${esc(l.data || "")}"></label>
+    <label>Competência (mês do custeio)<input type="month" id="cfComp" value="${esc(l.comp || (l.data || hoje()).slice(0,7))}"></label>
+    <label class="full">Conta do custeio<select id="cfConta">${grupos.map(gr => `<optgroup label="${esc(gr.cod + " " + gr.nome)}">${folhas.filter(f => f.cod.startsWith(gr.cod + ".")).map(f => {
+      const pai = contaPlano(f.cod.split(".").slice(0, -1).join("."));
+      return `<option value="${f.cod}" ${l.conta === f.cod ? "selected" : ""}>${esc(f.cod)} ${pai && pai.cod !== gr.cod ? esc(pai.nome) + " — " : ""}${esc(f.nome)}</option>`; }).join("")}</optgroup>`).join("")}</select></label>
+    <label class="full">Descrição<input id="cfDesc" value="${esc(l.descricao || "")}" placeholder="ex.: Diesel S10 — 2.000 L"></label>
+    <label>Fornecedor<input id="cfForn" value="${esc(l.fornecedor || "")}"></label>
+    <label>Nº da NF<input id="cfNf" value="${esc(l.nf || "")}"></label>
+    <label>Valor (R$)<input id="cfValor" inputmode="decimal" value="${l.valor != null ? fmtNum(l.valor) : ""}"></label>
+    ${itens.length ? `<label class="full">Item do contrato (opcional)<select id="cfItem"><option value="">— nenhum —</option>${itens.map(i => `<option value="${i.id}" ${l.itemContrato === i.id ? "selected" : ""}>${esc(i.item)} — ${esc(i.descricao.slice(0,70))}</option>`).join("")}</select></label>` : ""}
+    <label class="chk"><input type="checkbox" id="cfReemb" ${l.reembolsavel ? "checked" : ""}> Reembolsável (item medido na planilha)</label>
+  </div>
+  <p class="nota" id="cfDica"></p>
+  <div class="row" style="margin-top:10px"><button class="btn pri" id="cfSalvar">Salvar</button><button class="btn" id="cfCancelar">Cancelar</button>
+    ${S.cusEdit !== "novo" ? `<button class="btn" id="cfExcluir" style="color:var(--erro)">Excluir</button>` : ""}</div></div>`;
+}
+async function salvarCusto(){
+  const valor = num($("#cfValor").value);
+  if (valor === null){ toast("Informe o valor (ex.: 1.250,00).", true); return; }
+  const data = $("#cfData").value, comp = $("#cfComp").value || (data || hoje()).slice(0, 7);
+  if (!$("#cfDesc").value.trim()){ toast("Informe a descrição do gasto.", true); return; }
+  const novo = S.cusEdit === "novo", id = novo ? uid() : S.cusEdit, ant = novo ? {} : (S.cus.lista.find(x => x.id === id) || {});
+  const d = { ...ant, obraId:S.obraId, obraNome:obraAtual().nome, comp, data:data || null, conta:$("#cfConta").value, descricao:$("#cfDesc").value.trim(),
+    fornecedor:$("#cfForn").value.trim(), nf:$("#cfNf").value.trim(), valor, reembolsavel:$("#cfReemb").checked, itemContrato:$("#cfItem")?.value || null,
+    origem:ant.origem || "manual", atualizadoEm:agoraIso(), por:S.nome || "" };
+  if (novo) d.criadoEm = agoraIso();
+  delete d.id;
+  await store.set(COL_CUSTO, id, d);
+  await carregaCustos(true); S.cusEdit = null; S.cusMes = comp; renderCustos(); toast("Gasto salvo.");
+}
+async function salvarCfgCusteio(paths){
+  const id = S.obraId;
+  if (!(await store.get(COL_CUSTEIO, id))) await store.set(COL_CUSTEIO, id, { obraId:id });
+  await store.patch(COL_CUSTEIO, id, paths);
+  await carregaCustos(true);
+}
+document.addEventListener("click", async ev => {
+  const t = ev.target.closest("button"); if (!t || !t.closest("#v-custos")) return;
+  try {
+    if (t.dataset.cusmes){ S.cusMes = somaComp(S.cusMes, +t.dataset.cusmes); renderCustos(); return; }
+    if (t.id === "cusNovo"){ S.cusEdit = "novo"; renderCustos(); $("#cusForm")?.scrollIntoView({ behavior:"smooth", block:"start" }); return; }
+    if (t.dataset.cusedit){ S.cusEdit = t.dataset.cusedit; renderCustos(); $("#cusForm")?.scrollIntoView({ behavior:"smooth", block:"start" }); return; }
+    if (t.id === "cfCancelar"){ S.cusEdit = null; renderCustos(); return; }
+    if (t.id === "cfSalvar"){ t.disabled = true; await salvarCusto(); t.disabled = false; return; }
+    if (t.id === "cfExcluir"){
+      const l = S.cus.lista.find(x => x.id === S.cusEdit);
+      if (!confirm(`Excluir o gasto "${l.descricao}" de ${fmtR(l.valor)}?`)) return;
+      await store.del(COL_CUSTO, l.id); await carregaCustos(true); S.cusEdit = null; renderCustos(); toast("Gasto excluído."); return;
+    }
+    if (t.id === "cusExcel"){ t.disabled = true; await exportarCusteio(); t.disabled = false; return; }
+  } catch(e){ console.error(e); toast("Erro: " + e.message, true); t.disabled = false; }
+});
+document.addEventListener("change", async ev => {
+  const e = ev.target; if (!e.closest?.("#v-custos")) return;
+  try {
+    if (e.id === "cfData" && e.value) $("#cfComp").value = e.value.slice(0, 7);
+    if (e.id === "cfConta") $("#cfDica").textContent = /^1\.[12]$/.test(e.value) ? "Mão de obra: lance o valor da folha sem encargos — o custeio soma os encargos." : "";
+    if (e.id === "cusIni" && e.value){ await salvarCfgCusteio({ inicio:e.value }); renderCustos(); toast("Início do custeio salvo."); }
+    if (e.classList.contains("cuscfg")){ const v = num(e.value); if (v === null){ toast("Use número (ex.: 102,34).", true); return; }
+      await salvarCfgCusteio({ [e.dataset.k]:v }); renderCustos(); toast("Parâmetro salvo."); }
+    if (e.classList.contains("cusin")){ const v = e.value.trim() ? num(e.value) : 0; if (v === null){ toast("Use número.", true); return; }
+      await salvarCfgCusteio({ [`${e.dataset.cusin}.${e.dataset.comp}`]:v || DEL }); renderCustos(); }
+  } catch(err){ console.error(err); toast("Erro: " + err.message, true); }
+});
+
+/* ---------------- Excel no modelo "Resultado e Custeio" ---------------- */
+async function exportarCusteio(){
+  const ms = mesesCusteio(), ix = indiceCustos(), cfg = cfgCusteio(), o = obraAtual();
+  const wb = new ExcelJS.Workbook(); wb.creator = "Obras LM";
+  const fino = { style:"thin", color:{ argb:"FF000000" } }, borda = { top:fino, left:fino, bottom:fino, right:fino };
+  const MOE = '"R$" #,##0.00;-"R$" #,##0.00;"-"', AZ = "FF17375E", CL = "FFDCE6F1";
+  const L = n => { let s = ""; n++; while (n > 0){ const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; }; // 0 → A
+  const dataMes = c => new Date(Date.UTC(+c.slice(0,4), +c.slice(5,7) - 1, 1));
+  const est = (cell, o2 = {}) => { cell.border = borda; cell.font = { name:"Calibri", size:10, bold:!!o2.b, color:o2.cor ? { argb:o2.cor } : undefined };
+    if (o2.fill) cell.fill = { type:"pattern", pattern:"solid", fgColor:{ argb:o2.fill } }; if (o2.fmt) cell.numFmt = o2.fmt;
+    cell.alignment = { horizontal:o2.h || "center", vertical:"middle", wrapText:!!o2.wrap }; };
+  const RES = wb.addWorksheet("RESULTADO"), CUS = wb.addWorksheet("CUSTEIO"), MO = wb.addWorksheet("1 - M.O");
+  // abas de lançamento: cada uma mostra as contas abaixo de um grupo
+  const DET = [["2 - EQUIP.","2"],["3 - INSUMOS","3"],["4 - SUBEMPREITEIRO","4"],["5.1 - IND. CANT","5.1"],["5.2 - IND. ALIM","5.2"],
+    ["5.3 - IND. MANUT.","5.3"],["5.4 - IND. MOB-DESM","5.4"],["5.5 - IND. CONT. CANT","5.5"],["5.6 - IND. SEGUR.","5.6"]];
+  const ref = {};   // conta → referência da célula do mês (função do índice do mês)
+  // 1 - M.O: MENSAL / ENCARGOS / TOTAL por mês
+  MO.getColumn(1).width = 14;
+  ms.forEach((c, k) => {
+    const c0 = 1 + k * 3; MO.mergeCells(1, c0 + 1, 1, c0 + 3); MO.getCell(1, c0 + 1).value = dataMes(c); est(MO.getCell(1, c0 + 1), { b:true, fmt:"mmm/yy", fill:CL });
+    ["MENSAL","ENCARGOS","TOTAL"].forEach((t, j) => { MO.getColumn(c0 + 1 + j).width = 14; MO.getCell(2, c0 + 1 + j).value = t; est(MO.getCell(2, c0 + 1 + j), { b:true, fill:CL }); });
+    [["DIRETA","1.1",cfg.encDir],["INDIRETA","1.2",cfg.encInd]].forEach(([rot, cod, enc], j) => {
+      const r = 3 + j; MO.getCell(r, 1).value = rot; est(MO.getCell(r, 1), { b:true, h:"left" });
+      MO.getCell(r, c0 + 1).value = r2(ix[c + "|" + cod] || 0); est(MO.getCell(r, c0 + 1), { fmt:MOE });
+      MO.getCell(r, c0 + 2).value = enc / 100; est(MO.getCell(r, c0 + 2), { fmt:"0.00%" });
+      MO.getCell(r, c0 + 3).value = { formula:`${L(c0)}${r}*${L(c0 + 1)}${r}+${L(c0)}${r}` }; est(MO.getCell(r, c0 + 3), { fmt:MOE, b:true });
+    });
+  });
+  ref["1.1"] = k => `'1 - M.O'!${L(3 + k * 3)}3`; ref["1.2"] = k => `'1 - M.O'!${L(3 + k * 3)}4`;
+  for (const [aba, pai] of DET){
+    const ws = wb.addWorksheet(aba); ws.getColumn(1).width = 40;
+    ws.getCell(2, 1).value = contaPlano(pai).nome; est(ws.getCell(2, 1), { b:true, fill:CL, h:"left" });
+    ms.forEach((c, k) => { ws.getColumn(k + 2).width = 15; ws.getCell(1, k + 2).value = dataMes(c); est(ws.getCell(1, k + 2), { b:true, fmt:"mmm/yy", fill:CL });
+      ws.getCell(2, k + 2).value = "REAL"; est(ws.getCell(2, k + 2), { b:true, fill:CL }); });
+    const desc = PLANO_CUSTEIO.filter(c => c.cod.startsWith(pai + "."));
+    const linha = {}; desc.forEach((c, j) => linha[c.cod] = 3 + j);
+    for (const c of desc){
+      const r = linha[c.cod], fol = contaFolha(c.cod), niv = c.cod.split(".").length - pai.split(".").length;
+      ws.getCell(r, 1).value = (niv > 1 ? "   " : "") + c.nome; est(ws.getCell(r, 1), { h:"left", b:!fol });
+      ms.forEach((m, k) => {
+        const cell = ws.getCell(r, k + 2);
+        cell.value = fol ? r2(ix[m + "|" + c.cod] || 0) : { formula:filhosConta(c.cod).map(f => `${L(k + 1)}${linha[f.cod]}`).join("+") };
+        est(cell, { fmt:MOE, b:!fol });
+      });
+      ref[c.cod] = k => `'${aba}'!${L(k + 1)}${linha[c.cod]}`;
+    }
+  }
+  // CUSTEIO: estrutura do plano, cada linha puxa da aba de lançamento ou soma as filhas
+  CUS.getColumn(1).width = 10; CUS.getColumn(2).width = 40; CUS.getColumn(3).width = 9;
+  CUS.mergeCells(1, 1, 1, 3 + ms.length); CUS.getCell(1, 1).value = `CUSTEIO REALIZADO\nOBRA ${o.nome}`; est(CUS.getCell(1, 1), { b:true, wrap:true }); CUS.getRow(1).height = 34;
+  ["COD.","DESCRIÇÃO",""].forEach((t, j) => { CUS.getCell(2, j + 1).value = t; est(CUS.getCell(2, j + 1), { b:true, fill:AZ, cor:"FFFFFFFF" }); });
+  ms.forEach((c, k) => { CUS.getColumn(k + 4).width = 15; CUS.getCell(2, k + 4).value = compBR(c); est(CUS.getCell(2, k + 4), { b:true, fill:AZ, cor:"FFFFFFFF" }); });
+  const linC = {}; PLANO_CUSTEIO.forEach((c, j) => linC[c.cod] = 5 + j);
+  const topo = PLANO_CUSTEIO.filter(c => !c.cod.includes("."));
+  CUS.getCell(3, 1).value = "CUSTO ACUMULADO"; CUS.getCell(4, 1).value = "CUSTO MÊS";
+  [3, 4].forEach(r => { CUS.mergeCells(r, 1, r, 3); est(CUS.getCell(r, 1), { b:true, h:"left", fill:CL }); });
+  ms.forEach((m, k) => {
+    const col = L(k + 3);
+    CUS.getCell(4, k + 4).value = { formula:topo.map(t => `${col}${linC[t.cod]}`).join("+") }; est(CUS.getCell(4, k + 4), { fmt:MOE, b:true, fill:CL });
+    CUS.getCell(3, k + 4).value = { formula:k ? `${L(k + 2)}3+${col}4` : `${col}4` }; est(CUS.getCell(3, k + 4), { fmt:MOE, b:true, fill:CL });
+  });
+  for (const c of PLANO_CUSTEIO){
+    const r = linC[c.cod], niv = c.cod.split(".").length;
+    CUS.getCell(r, 1).value = c.cod; CUS.getCell(r, 2).value = c.nome;
+    est(CUS.getCell(r, 1), { b:niv === 1, h:"left", fill:niv === 1 ? CL : undefined }); est(CUS.getCell(r, 2), { b:niv <= 2, h:"left", fill:niv === 1 ? CL : undefined });
+    const cc = CUS.getCell(r, 3); est(cc, { fmt:"0.00%" });
+    if (c.cod === "5.3.1"){ cc.value = cfg.manutEq / 100; }
+    ms.forEach((m, k) => {
+      const cell = CUS.getCell(r, k + 4), col = L(k + 3);
+      if (ref[c.cod]) cell.value = { formula: c.cod === "5.3.1" ? `${ref[c.cod](k)}+$C${r}*${col}${linC["2.1"]}` : ref[c.cod](k) };
+      else cell.value = { formula:filhosConta(c.cod).map(f => `${col}${linC[f.cod]}`).join("+") || "0" };
+      est(cell, { fmt:MOE, b:niv === 1, fill:niv === 1 ? CL : undefined });
+    });
+  }
+  // a manutenção de equipamentos soma o % da locação direta: a aba 5.3 mostra só o lançado, o pai 5.3 no CUSTEIO soma as linhas do CUSTEIO
+  ms.forEach((m, k) => { const col = L(k + 3);
+    CUS.getCell(linC["5.3"], k + 4).value = { formula:`${col}${linC["5.3.1"]}+${col}${linC["5.3.2"]}` };
+    CUS.getCell(linC["5"], k + 4).value = { formula:filhosConta("5").map(f => `${col}${linC[f.cod]}`).join("+") }; });
+  // RESULTADO
+  RES.getColumn(1).width = 40;
+  RES.mergeCells(1, 1, 1, 1 + ms.length); RES.getCell(1, 1).value = `RELATORIO FINANCEIRO\nOBRA ${o.nome}`; est(RES.getCell(1, 1), { b:true, wrap:true }); RES.getRow(1).height = 34;
+  RES.getCell(2, 1).value = "RELATORIO FINANCEIRO"; est(RES.getCell(2, 1), { b:true, fill:AZ, cor:"FFFFFFFF", h:"left" });
+  ms.forEach((c, k) => { RES.getColumn(k + 2).width = 16; RES.getCell(2, k + 2).value = dataMes(c); est(RES.getCell(2, k + 2), { b:true, fill:AZ, cor:"FFFFFFFF", fmt:"mmm/yy" }); });
+  const C = cod => k => `CUSTEIO!${L(k + 3)}${linC[cod]}`;
+  const linhas = [
+    ["1 - FATURAMENTO", k => `${L(k+1)}4+${L(k+1)}5`, true],
+    ["1.1 - MEDICAO", k => resultadoMes(ms[k], ix).medicao, false, true],
+    ["1.2 - PRATELEIRA", k => resultadoMes(ms[k], ix).prateleira, false, true],
+    ["2 -CUSTO", k => `${L(k+1)}7+${L(k+1)}12`, true],
+    ["2.1 - CUSTO DIRETO", k => `SUM(${L(k+1)}8:${L(k+1)}11)`, true],
+    ["M.O  DIRETA", k => C("1.1")(k)],
+    ["EQUIPAMENTOS DIRETOS (LOC + COMBU.)", k => `${C("2.1")(k)}+${C("2.3")(k)}`],
+    ["INSUMOS", k => C("3")(k)],
+    ["SUBEMPREITEIROS", k => C("4")(k)],
+    ["2.2 - CUSTO INDIRETO", k => `SUM(${L(k+1)}13:${L(k+1)}15)`, true],
+    ["M.O  INDIRETA", k => C("1.2")(k)],
+    ["EQUIPAMENTOS INDIRETO", k => C("2.2")(k)],
+    ["INDIRETOS", k => C("5")(k)],
+    [`3 - IMPOSTO (${fmtNum(cfg.imposto)} %)`, k => `${L(k+1)}4*${cfg.imposto / 100}`],
+    [`4 - ADMINISTRAÇÃO CENTRAL (${fmtNum(cfg.admCentral)}%)`, k => `${L(k+1)}4*${cfg.admCentral / 100}`],
+    null,
+    ["RESULTADO (R$)", k => `${L(k+1)}3-${L(k+1)}6-${L(k+1)}16-${L(k+1)}17`, true],
+    ["RESULTADO ACUMULADO (R$)", k => k ? `${L(k)}20+${L(k+1)}19` : `${L(k+1)}19`, true],
+    ["RESULTADO (%)", k => `IF(${L(k+1)}3=0,0,${L(k+1)}19/${L(k+1)}3)`, false, false, "0.00%"],
+    ["RESULTADO ACUMULADO (%)", k => `IF(SUM($B3:${L(k+1)}3)=0,0,${L(k+1)}20/SUM($B3:${L(k+1)}3))`, false, false, "0.00%"]
+  ];
+  linhas.forEach((ln, j) => {
+    const r = 3 + j; if (!ln) return;
+    const [rot, f, b, valor, fmt] = ln;
+    RES.getCell(r, 1).value = rot; est(RES.getCell(r, 1), { b, h:"left", fill:b ? CL : undefined });
+    ms.forEach((m, k) => { const cell = RES.getCell(r, k + 2); cell.value = valor ? f(k) : { formula:f(k) }; est(cell, { fmt:fmt || MOE, b, fill:b ? CL : undefined }); });
+  });
+  // LANÇAMENTOS (detalhe para conferência)
+  const LA = wb.addWorksheet("LANÇAMENTOS");
+  const cab = ["COMPETÊNCIA","DATA","CONTA","DESCRIÇÃO DA CONTA","DESCRIÇÃO","FORNECEDOR","NF","VALOR","REEMBOLSÁVEL","ITEM DO CONTRATO","ORIGEM","LANÇADO POR"];
+  [12,12,10,36,44,28,12,16,13,14,12,16].forEach((w, k) => LA.getColumn(k + 1).width = w);
+  LA.getRow(1).values = cab; LA.getRow(1).eachCell(c => est(c, { b:true, fill:AZ, cor:"FFFFFFFF", wrap:true }));
+  const its = S.ext.contrato?.itens || [];
+  S.cus.lista.filter(l => ms.includes(l.comp)).sort((a,b) => (a.comp + (a.data || "")).localeCompare(b.comp + (b.data || ""))).forEach((l, j) => {
+    const row = LA.getRow(2 + j);
+    row.values = [compBR(l.comp), l.data ? xlDate(l.data) : "", l.conta, contaPlano(l.conta)?.nome || "", l.descricao || "", l.fornecedor || "", l.nf || "", Number(l.valor) || 0,
+      l.reembolsavel ? "SIM" : "NÃO", its.find(i => i.id === l.itemContrato)?.item || "", l.origem || "", l.por || ""];
+    row.eachCell({ includeEmpty:true }, (c, col) => { if (col > 12) return; est(c, { h:[4,5,6].includes(col) ? "left" : "center", fmt:col === 8 ? MOE : col === 2 ? "dd/mm/yyyy" : undefined }); });
+  });
+  [RES, CUS].forEach(ws => { ws.pageSetup = { paperSize:9, orientation:"landscape", fitToPage:true, fitToWidth:1, fitToHeight:0 }; ws.views = [{ state:"frozen", xSplit:ws === CUS ? 3 : 1, ySplit:2 }]; });
+  const buf = await wb.xlsx.writeBuffer();
+  baixar(new Blob([buf], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `Resultado e Custeio - ${o.nome} - ${compBR(ms[ms.length - 1]).replace("/", "-")}.xlsx`);
+  toast("Custeio e Resultado exportados.");
+}
 
 /* ======================================================================
    QUADRO DE OBRAS — contratos da LM com valor, medido e saldo (só acesso geral)
