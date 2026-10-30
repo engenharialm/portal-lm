@@ -4224,11 +4224,13 @@ document.addEventListener("click", async ev => {
 /* ======================================================================
    CUSTOS — custeio da obra no plano de contas do modelo "Resultado e Custeio" da LM
    obra_custos/{id}:   { obraId, comp:"AAAA-MM", data, conta, descricao, fornecedor, nf, valor,
-                         reembolsavel, itemContrato, origem, criadoEm, por }
-   obra_custeio/{obra}: { inicio:"AAAA-MM", encDir, encInd, manutEq, imposto, admCentral (em %),
-                          prateleira:{comp:valor}, medicaoManual:{comp:valor} }
-   Mão de obra é lançada sem encargos (o custeio soma os encargos); manutenção de equipamentos
-   soma o % sobre a locação direta; o faturamento vem das medições da obra (mês do fim do período).
+                         reembolsavel, itemContrato, origem, criadoEm, por }   ← REALIZADO
+   obra_custeio/{obra}: { inicio, fim ("AAAA-MM"), encDir, encInd, manutEq, imposto, admCentral (em %),
+                          previsto:{ comp:{ conta_com_underline:valor } },        ← PREVISTO (orçamento)
+                          medicaoPrevista:{comp:valor}, medicaoManual:{comp:valor}, prateleira:{comp:valor} }
+   Meses anteriores ao atual = REAL (lançamentos); mês atual em diante = PREVISTO.
+   Mão de obra é lançada/prevista sem encargos (o custeio soma os encargos); manutenção de equipamentos
+   soma o % sobre a locação direta; o faturamento real vem das medições da obra (mês do fim do período).
    ====================================================================== */
 const COL_CUSTO = "obra_custos", COL_CUSTEIO = "obra_custeio";
 const PLANO_CUSTEIO = [
@@ -4250,10 +4252,13 @@ const contaPlano = cod => PLANO_CUSTEIO.find(c => c.cod === cod);
 const filhosConta = cod => PLANO_CUSTEIO.filter(c => c.cod.startsWith(cod + ".") && c.cod.split(".").length === cod.split(".").length + 1);
 const contaFolha = cod => !filhosConta(cod).length;
 const nomeConta = cod => { const c = contaPlano(cod); return c ? `${c.cod} ${c.nome}` : cod; };
+const chaveConta = cod => cod.replace(/\./g, "_");
 const compBR = c => { const [y, m] = c.split("-"); return `${MESES[+m - 1]}/${y.slice(2)}`; };
 const somaComp = (c, n) => { const d = new Date(+c.slice(0,4), +c.slice(5,7) - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
+const mesAtual = () => hoje().slice(0, 7);
+const mesReal = comp => comp < mesAtual();          // mês fechado: vale o realizado
 S.cus = { obraId:null, lista:[], cfg:null };
-S.cusMes = hoje().slice(0, 7);
+S.cusMes = mesAtual();
 S.cusEdit = null;
 
 async function carregaCustos(force){
@@ -4263,31 +4268,57 @@ async function carregaCustos(force){
   S.cus = { obraId:id, lista:lista.sort((a,b) => (a.data || "").localeCompare(b.data || "")), cfg:cfg || {} };
 }
 const cfgCusteio = () => ({ ...CUSTEIO_PADRAO, ...(S.cus.cfg || {}) });
-// valor de uma conta num mês (folhas: lançamentos; M.O. com encargos; manutenção de equipamentos com % da locação)
-function valorConta(cod, comp, ix){
-  const cfg = cfgCusteio();
-  if (!contaFolha(cod)) return r2(filhosConta(cod).reduce((s,f) => s + valorConta(f.cod, comp, ix), 0));
-  const lanc = r2((ix[comp + "|" + cod] || 0));
-  if (cod === "1.1") return r2(lanc * (1 + cfg.encDir / 100));
-  if (cod === "1.2") return r2(lanc * (1 + cfg.encInd / 100));
-  if (cod === "5.3.1") return r2(lanc + valorConta("2.1", comp, ix) * cfg.manutEq / 100);
-  return lanc;
-}
-function indiceCustos(){
+// índices "mês|conta" → valor: realizado (lançamentos), previsto (orçamento) e o do custeio (real nos meses fechados, previsto nos demais)
+function indiceReal(){
   const ix = {};
   for (const l of S.cus.lista){ const k = l.comp + "|" + l.conta; ix[k] = (ix[k] || 0) + (Number(l.valor) || 0); }
   return ix;
 }
-// medição do mês: medições do sistema pelo mês do fim do período + medição lançada à mão
+function indicePrev(){
+  const ix = {};
+  for (const [comp, contas] of Object.entries(S.cus.cfg?.previsto || {}))
+    for (const [k, v] of Object.entries(contas || {})) ix[comp + "|" + k.replace(/_/g, ".")] = Number(v) || 0;
+  return ix;
+}
+function indiceCusteio(){
+  const re = indiceReal(), pr = indicePrev(), ix = {};
+  for (const [k, v] of Object.entries(re)) if (mesReal(k.slice(0, 7))) ix[k] = v;
+  for (const [k, v] of Object.entries(pr)) if (!mesReal(k.slice(0, 7))) ix[k] = v;
+  return ix;
+}
+// valor de uma conta num mês (folhas: valores do índice; M.O. com encargos; manutenção de equipamentos com % da locação)
+function valorConta(cod, comp, ix){
+  const cfg = cfgCusteio();
+  if (!contaFolha(cod)) return r2(filhosConta(cod).reduce((s,f) => s + valorConta(f.cod, comp, ix), 0));
+  const v = r2(ix[comp + "|" + cod] || 0);
+  if (cod === "1.1") return r2(v * (1 + cfg.encDir / 100));
+  if (cod === "1.2") return r2(v * (1 + cfg.encInd / 100));
+  if (cod === "5.3.1") return r2(v + valorConta("2.1", comp, ix) * cfg.manutEq / 100);
+  return v;
+}
+const custoTotal = (comp, ix) => r2(["1","2","3","4","5"].reduce((s,c) => s + valorConta(c, comp, ix), 0));
+// medição do mês: real = medições do sistema (mês do fim do período) + lançada à mão; previsto = medição prevista
+function medicaoSistema(comp){
+  const c = S.ext.contrato;
+  return c ? r2(S.ext.meds.filter(m => (m.fim || "").slice(0,7) === comp).reduce((s,m) => s + valorMed(m, c), 0)) : 0;
+}
 function medicaoMes(comp){
-  const c = S.ext.contrato, cfg = S.cus.cfg || {};
-  const sis = c ? r2(S.ext.meds.filter(m => (m.fim || "").slice(0,7) === comp).reduce((s,m) => s + valorMed(m, c), 0)) : 0;
-  return r2(sis + (Number(cfg.medicaoManual?.[comp]) || 0));
+  const cfg = S.cus.cfg || {};
+  if (mesReal(comp)) return r2(medicaoSistema(comp) + (Number(cfg.medicaoManual?.[comp]) || 0));
+  const prev = cfg.medicaoPrevista?.[comp];
+  return prev != null ? r2(Number(prev) || 0) : r2(medicaoSistema(comp) + (Number(cfg.medicaoManual?.[comp]) || 0));
+}
+// término padrão: contrato (início + prazo), senão o planejamento, senão 12 meses
+function fimPadraoCusteio(ini){
+  const c = S.ext.contrato, p = c?.planejamento;
+  if (c?.inicio && c?.prazoMeses) return addDays(addMeses(c.inicio, c.prazoMeses), -1).slice(0, 7);
+  if (p?.fim) return p.fim.slice(0, 7);
+  return somaComp(ini, 11);
 }
 function mesesCusteio(){
-  const atual = hoje().slice(0, 7), comps = S.cus.lista.map(l => l.comp).filter(Boolean).sort();
+  const atual = mesAtual(), comps = S.cus.lista.map(l => l.comp).filter(Boolean).sort();
   const ini = S.cus.cfg?.inicio || comps[0] || atual;
-  const fim = [atual, comps[comps.length - 1] || atual].sort().pop();
+  const fim = [S.cus.cfg?.fim || fimPadraoCusteio(ini), comps[comps.length - 1] || ini, ini].sort().pop();
   const out = []; for (let c = ini; c <= fim && out.length < 120; c = somaComp(c, 1)) out.push(c);
   return out;
 }
@@ -4311,14 +4342,13 @@ function renderCustos(){
       .catch(e => { console.error(e); el.innerHTML = `<div class="card vazio">Erro ao carregar: ${esc(e.message)}</div>`; });
     return;
   }
-  const ix = indiceCustos(), mes = S.cusMes, doMes = S.cus.lista.filter(l => l.comp === mes);
+  const rx = indiceReal(), px = indicePrev(), mes = S.cusMes, doMes = S.cus.lista.filter(l => l.comp === mes);
   const g = ehGeral();
   let h = `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Custos — ${esc(obraAtual().nome)}</h3>
-      <span class="row"><button class="btn pri peq" id="cusNovo">+ Lançar gasto</button>${g ? `<button class="btn peq" id="cusExcel" title="Custeio e Resultado no modelo da LM">Custeio e Resultado (Excel)</button>` : ""}</span></div>
+      <span class="row"><button class="btn pri peq" id="cusNovo">+ Lançar gasto</button>${g ? `<button class="btn peq" id="cusExcel" title="Custeio e Resultado no modelo da LM, com todos os meses da obra">Custeio e Resultado (Excel)</button>` : ""}</span></div>
     <p class="nota">Lance todo gasto da obra na conta do custeio — compras de planilha ou não (marque <b>reembolsável</b> só quando for item medido). Mão de obra: lance o valor da folha <b>sem encargos</b>; o custeio soma ${fmtNum(cfgCusteio().encDir)}% (direta) e ${fmtNum(cfgCusteio().encInd)}% (indireta).</p></div>`;
   if (S.cusEdit) h += formCusto();
-  h += `<div class="weekbar"><button data-cusmes="-1" aria-label="Mês anterior">‹</button><span class="wk">Competência ${compBR(mes)}</span><button data-cusmes="1" aria-label="Próximo mês">›</button></div>`;
-  // lançamentos do mês
+  h += `<div class="weekbar"><button data-cusmes="-1" aria-label="Mês anterior">‹</button><span class="wk">Competência ${compBR(mes)} <small>(${mesReal(mes) ? "mês fechado" : mes === mesAtual() ? "mês atual" : "futuro"})</small></span><button data-cusmes="1" aria-label="Próximo mês">›</button></div>`;
   const tot = r2(doMes.reduce((s,l) => s + (Number(l.valor) || 0), 0));
   h += `<div class="card"><h3>Lançamentos de ${compBR(mes)} — ${fmtR(tot)}</h3>`;
   if (!doMes.length) h += `<div class="vazio">Nenhum gasto lançado neste mês.</div>`;
@@ -4330,29 +4360,31 @@ function renderCustos(){
     h += `</tbody></table></div>`;
   }
   h += `</div>`;
-  // custeio do mês (árvore com o que foi calculado)
-  h += `<div class="card"><h3>Custeio de ${compBR(mes)}</h3><div class="tbwrap"><table class="tb"><tbody>`;
+  // previsto × realizado do mês
+  h += `<div class="card"><h3>Custeio de ${compBR(mes)} — previsto × realizado</h3><div class="tbwrap"><table class="tb"><thead><tr><th class="l">Conta</th>${g ? "<th>Previsto</th>" : ""}<th>Realizado</th>${g ? "<th>Diferença</th>" : ""}</tr></thead><tbody>`;
   for (const c of PLANO_CUSTEIO){
-    const v = valorConta(c.cod, mes, ix), niv = c.cod.split(".").length;
-    if (niv > 2 && !v) continue;
-    h += `<tr class="${niv === 1 ? "g" : ""}"><td class="l" style="padding-left:${8 + (niv - 1) * 14}px">${esc(c.cod)} ${esc(c.nome)}</td><td>${v ? fmtR(v) : "—"}</td></tr>`;
+    const vr = valorConta(c.cod, mes, rx), vp = valorConta(c.cod, mes, px), niv = c.cod.split(".").length;
+    if (niv > 2 && !vr && !vp) continue;
+    h += `<tr class="${niv === 1 ? "g" : ""}"><td class="l" style="padding-left:${8 + (niv - 1) * 14}px">${esc(c.cod)} ${esc(c.nome)}</td>${g ? `<td>${vp ? fmtR(vp) : "—"}</td>` : ""}<td>${vr ? fmtR(vr) : "—"}</td>${g ? `<td class="${vr > vp + 0.005 ? "neg" : ""}">${vp || vr ? fmtR(r2(vp - vr)) : "—"}</td>` : ""}</tr>`;
   }
-  h += `</tbody><tfoot><tr><td class="l">CUSTO DO MÊS</td><td>${fmtR(r2(["1","2","3","4","5"].reduce((s,c) => s + valorConta(c, mes, ix), 0)))}</td></tr></tfoot></table></div></div>`;
-  if (g) h += cardResultado(ix);
+  h += `</tbody><tfoot><tr><td class="l">CUSTO DO MÊS</td>${g ? `<td>${fmtR(custoTotal(mes, px))}</td>` : ""}<td>${fmtR(custoTotal(mes, rx))}</td>${g ? `<td>${fmtR(r2(custoTotal(mes, px) - custoTotal(mes, rx)))}</td>` : ""}</tr></tfoot></table></div></div>`;
+  if (g){ h += cardResultado(); h += cardPrevisto(); }
   el.innerHTML = h; setSavebar("");
 }
-function cardResultado(ix){
-  const ms = mesesCusteio(), cfg = cfgCusteio();
+function cardResultado(){
+  const ms = mesesCusteio(), cfg = cfgCusteio(), ix = indiceCusteio();
   const R = ms.map(c => resultadoMes(c, ix));
   let acR = 0, acF = 0;
-  const lin = (rot, f, cls = "", edit) => `<tr class="${cls}"><td class="l">${rot}</td>${R.map((r,k) => `<td>${edit ? `<input class="cusin" data-cusin="${edit}" data-comp="${ms[k]}" inputmode="decimal" value="${(Number(S.cus.cfg?.[edit]?.[ms[k]]) || 0) ? fmtNum(S.cus.cfg[edit][ms[k]]) : ""}" placeholder="0" style="width:96px">` : f(r, k)}</td>`).join("")}</tr>`;
-  let h = `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Resultado da obra</h3>
-      <span class="row"><label>Início do custeio <input type="month" id="cusIni" value="${esc(S.cus.cfg?.inicio || ms[0])}"></label></span></div>
-    <div class="tbwrap" style="margin-top:10px"><table class="tb"><thead><tr><th class="l">Relatório financeiro</th>${ms.map(c => `<th>${compBR(c)}</th>`).join("")}</tr></thead><tbody>`;
+  const inp = (campo, comp) => `<input class="cusin" data-cusin="${campo}" data-comp="${comp}" inputmode="decimal" value="${S.cus.cfg?.[campo]?.[comp] != null && S.cus.cfg[campo][comp] !== "" ? fmtNum(S.cus.cfg[campo][comp]) : ""}" placeholder="0" style="width:96px">`;
+  const lin = (rot, f, cls = "") => `<tr class="${cls}"><td class="l">${rot}</td>${R.map((r,k) => `<td>${f(r, k, ms[k])}</td>`).join("")}</tr>`;
+  let h = `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Resultado da obra — real e previsto</h3>
+      <span class="row"><label>Início <input type="month" id="cusIni" value="${esc(ms[0])}"></label><label>Fim <input type="month" id="cusFim" value="${esc(ms[ms.length - 1])}"></label></span></div>
+    <div class="tbwrap" style="margin-top:10px"><table class="tb"><thead><tr><th class="l">Relatório financeiro</th>${ms.map(c => `<th>${compBR(c)}<br><small>${mesReal(c) ? "real" : "previsto"}</small></th>`).join("")}</tr></thead><tbody>`;
   h += lin("1 - FATURAMENTO", r => fmtR(r.fat), "g");
-  h += lin("1.1 - Medição (sistema)", r => fmtR(r.medicao - (Number(S.cus.cfg?.medicaoManual?.[ms[R.indexOf(r)]]) || 0)));
-  h += lin("1.1 - Medição lançada à mão", null, "", "medicaoManual");
-  h += lin("1.2 - Prateleira", null, "", "prateleira");
+  h += lin("1.1 - Medição", r => fmtR(r.medicao));
+  h += lin("&nbsp;&nbsp;medição prevista (meses futuros)", (r, k, c) => mesReal(c) ? "" : inp("medicaoPrevista", c));
+  h += lin("&nbsp;&nbsp;medição fora do sistema (meses fechados)", (r, k, c) => mesReal(c) ? inp("medicaoManual", c) : "");
+  h += lin("1.2 - Prateleira", (r, k, c) => inp("prateleira", c));
   h += lin("2 - CUSTO", r => fmtR(r.custo), "g");
   h += lin("2.1 - Custo direto", r => fmtR(r.custoDir));
   h += lin("&nbsp;&nbsp;M.O. direta", r => fmtR(r.dir.mo));
@@ -4378,7 +4410,26 @@ function cardResultado(ix){
       <label>Imposto (% da medição)<input class="cuscfg" data-k="imposto" inputmode="decimal" value="${fmtNum(cfg.imposto)}"></label>
       <label>Administração central (%)<input class="cuscfg" data-k="admCentral" inputmode="decimal" value="${fmtNum(cfg.admCentral)}"></label>
     </div>
-    <p class="nota">Medição (sistema) = medições da aba Medições pelo mês do fim do período, a preço do contrato. Use “lançada à mão” para medições fora do sistema (ex.: reajuste) e “prateleira” para serviço executado ainda não medido. Os campos salvam ao sair.</p></div>`;
+    <p class="nota">Meses fechados (anteriores a ${compBR(mesAtual())}) usam o <b>realizado</b>: gastos lançados e medições da aba Medições. Do mês atual em diante usa o <b>previsto</b> (quadro abaixo e medição prevista). O fim padrão é o término do contrato. Os campos salvam ao sair.</p></div>`;
+  return h;
+}
+// orçamento por conta e mês (todos os meses: nos fechados serve para o comparativo previsto × real)
+function cardPrevisto(){
+  const ms = mesesCusteio(), px = indicePrev();
+  const grupos = PLANO_CUSTEIO.filter(c => !c.cod.includes("."));
+  let h = `<div class="card" id="cusPrevCard"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Custeio previsto (orçamento por conta)</h3></div>
+    <p class="nota">Valores mensais previstos. Mão de obra sem encargos. <b>→</b> repete o último valor preenchido da linha nos meses seguintes que estiverem vazios.</p>
+    <div class="tbwrap" id="cusPrevWrap"><table class="tb"><thead><tr><th class="l">Conta</th><th></th>${ms.map(c => `<th>${compBR(c)}</th>`).join("")}<th>Total</th></tr></thead><tbody>`;
+  for (const gr of grupos){
+    h += `<tr class="g"><td class="l" colspan="2">${esc(gr.cod)} ${esc(gr.nome)}</td>${ms.map(c => `<td>${fmtR(valorConta(gr.cod, c, px))}</td>`).join("")}<td>${fmtR(r2(ms.reduce((s,c) => s + valorConta(gr.cod, c, px), 0)))}</td></tr>`;
+    for (const f of PLANO_CUSTEIO.filter(c => c.cod.startsWith(gr.cod + ".") && contaFolha(c.cod))){
+      const pai = contaPlano(f.cod.split(".").slice(0, -1).join("."));
+      const totF = r2(ms.reduce((s,c) => s + (px[c + "|" + f.cod] || 0), 0));
+      h += `<tr><td class="l"><small>${esc(f.cod)}</small> ${pai && pai.cod !== gr.cod ? `<small>${esc(pai.nome)} —</small> ` : ""}${esc(f.nome)}</td><td><button class="btn peq" data-cusrep="${f.cod}" title="Repetir o último valor nos meses seguintes vazios">→</button></td>
+        ${ms.map(c => `<td><input class="cusprev" data-conta="${f.cod}" data-comp="${c}" inputmode="decimal" value="${px[c + "|" + f.cod] ? fmtNum(px[c + "|" + f.cod]) : ""}" style="width:92px"></td>`).join("")}<td>${totF ? fmtR(totF) : "—"}</td></tr>`;
+    }
+  }
+  h += `</tbody><tfoot><tr><td class="l" colspan="2">CUSTO PREVISTO DO MÊS (com encargos e manutenção)</td>${ms.map(c => `<td>${fmtR(custoTotal(c, px))}</td>`).join("")}<td>${fmtR(r2(ms.reduce((s,c) => s + custoTotal(c, px), 0)))}</td></tr></tfoot></table></div></div>`;
   return h;
 }
 function formCusto(){
@@ -4423,6 +4474,12 @@ async function salvarCfgCusteio(paths){
   await store.patch(COL_CUSTEIO, id, paths);
   await carregaCustos(true);
 }
+// redesenha mantendo a rolagem da página e das tabelas largas
+function redesenhaCustos(){
+  const y = window.scrollY, sx = $("#cusPrevWrap")?.scrollLeft, rx = $$("#v-custos .tbwrap").map(w => w.scrollLeft);
+  renderCustos();
+  window.scrollTo(0, y); $$("#v-custos .tbwrap").forEach((w, k) => w.scrollLeft = rx[k] || 0); if ($("#cusPrevWrap") && sx != null) $("#cusPrevWrap").scrollLeft = sx;
+}
 document.addEventListener("click", async ev => {
   const t = ev.target.closest("button"); if (!t || !t.closest("#v-custos")) return;
   try {
@@ -4436,6 +4493,13 @@ document.addEventListener("click", async ev => {
       if (!confirm(`Excluir o gasto "${l.descricao}" de ${fmtR(l.valor)}?`)) return;
       await store.del(COL_CUSTO, l.id); await carregaCustos(true); S.cusEdit = null; renderCustos(); toast("Gasto excluído."); return;
     }
+    if (t.dataset.cusrep){
+      const cod = t.dataset.cusrep, px = indicePrev(), ms = mesesCusteio(), paths = {};
+      let ult = null;
+      for (const c of ms){ const v = px[c + "|" + cod]; if (v) ult = v; else if (ult != null) paths[`previsto.${c}.${chaveConta(cod)}`] = ult; }
+      if (!Object.keys(paths).length){ toast("Preencha um valor na linha antes de repetir.", true); return; }
+      await salvarCfgCusteio(paths); redesenhaCustos(); toast(`Valor repetido em ${Object.keys(paths).length} mês(es).`); return;
+    }
     if (t.id === "cusExcel"){ t.disabled = true; await exportarCusteio(); t.disabled = false; return; }
   } catch(e){ console.error(e); toast("Erro: " + e.message, true); t.disabled = false; }
 });
@@ -4444,97 +4508,109 @@ document.addEventListener("change", async ev => {
   try {
     if (e.id === "cfData" && e.value) $("#cfComp").value = e.value.slice(0, 7);
     if (e.id === "cfConta") $("#cfDica").textContent = /^1\.[12]$/.test(e.value) ? "Mão de obra: lance o valor da folha sem encargos — o custeio soma os encargos." : "";
-    if (e.id === "cusIni" && e.value){ await salvarCfgCusteio({ inicio:e.value }); renderCustos(); toast("Início do custeio salvo."); }
+    if ((e.id === "cusIni" || e.id === "cusFim") && e.value){ await salvarCfgCusteio({ [e.id === "cusIni" ? "inicio" : "fim"]:e.value }); redesenhaCustos(); toast("Período do custeio salvo."); }
     if (e.classList.contains("cuscfg")){ const v = num(e.value); if (v === null){ toast("Use número (ex.: 102,34).", true); return; }
-      await salvarCfgCusteio({ [e.dataset.k]:v }); renderCustos(); toast("Parâmetro salvo."); }
-    if (e.classList.contains("cusin")){ const v = e.value.trim() ? num(e.value) : 0; if (v === null){ toast("Use número.", true); return; }
-      await salvarCfgCusteio({ [`${e.dataset.cusin}.${e.dataset.comp}`]:v || DEL }); renderCustos(); }
+      await salvarCfgCusteio({ [e.dataset.k]:v }); redesenhaCustos(); toast("Parâmetro salvo."); }
+    if (e.classList.contains("cusin")){ const v = e.value.trim() ? num(e.value) : null; if (e.value.trim() && v === null){ toast("Use número.", true); return; }
+      await salvarCfgCusteio({ [`${e.dataset.cusin}.${e.dataset.comp}`]:v === null ? DEL : v }); redesenhaCustos(); }
+    if (e.classList.contains("cusprev")){ const v = e.value.trim() ? num(e.value) : null; if (e.value.trim() && v === null){ toast("Use número.", true); return; }
+      await salvarCfgCusteio({ [`previsto.${e.dataset.comp}.${chaveConta(e.dataset.conta)}`]:v ? v : DEL }); redesenhaCustos(); }
   } catch(err){ console.error(err); toast("Erro: " + err.message, true); }
 });
 
-/* ---------------- Excel no modelo "Resultado e Custeio" ---------------- */
+/* ---------------- Excel no modelo "Resultado e Custeio" (todos os meses: real e previsto) ---------------- */
 async function exportarCusteio(){
-  const ms = mesesCusteio(), ix = indiceCustos(), cfg = cfgCusteio(), o = obraAtual();
+  const ms = mesesCusteio(), ix = indiceCusteio(), px = indicePrev(), cfg = cfgCusteio(), o = obraAtual();
   const wb = new ExcelJS.Workbook(); wb.creator = "Obras LM";
   const fino = { style:"thin", color:{ argb:"FF000000" } }, borda = { top:fino, left:fino, bottom:fino, right:fino };
-  const MOE = '"R$" #,##0.00;-"R$" #,##0.00;"-"', AZ = "FF17375E", CL = "FFDCE6F1";
+  const MOE = '"R$" #,##0.00;-"R$" #,##0.00;"-"', AZ = "FF17375E", CL = "FFDCE6F1", PRV = "FFFFF2CC";
   const L = n => { let s = ""; n++; while (n > 0){ const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; }; // 0 → A
   const dataMes = c => new Date(Date.UTC(+c.slice(0,4), +c.slice(5,7) - 1, 1));
+  const tipo = c => mesReal(c) ? "REAL" : "PREVISTO";
   const est = (cell, o2 = {}) => { cell.border = borda; cell.font = { name:"Calibri", size:10, bold:!!o2.b, color:o2.cor ? { argb:o2.cor } : undefined };
     if (o2.fill) cell.fill = { type:"pattern", pattern:"solid", fgColor:{ argb:o2.fill } }; if (o2.fmt) cell.numFmt = o2.fmt;
     cell.alignment = { horizontal:o2.h || "center", vertical:"middle", wrapText:!!o2.wrap }; };
+  const fundo = (c, base) => base || (mesReal(c) ? undefined : PRV);   // meses previstos em amarelo claro
   const RES = wb.addWorksheet("RESULTADO"), CUS = wb.addWorksheet("CUSTEIO"), MO = wb.addWorksheet("1 - M.O");
-  // abas de lançamento: cada uma mostra as contas abaixo de um grupo
   const DET = [["2 - EQUIP.","2"],["3 - INSUMOS","3"],["4 - SUBEMPREITEIRO","4"],["5.1 - IND. CANT","5.1"],["5.2 - IND. ALIM","5.2"],
     ["5.3 - IND. MANUT.","5.3"],["5.4 - IND. MOB-DESM","5.4"],["5.5 - IND. CONT. CANT","5.5"],["5.6 - IND. SEGUR.","5.6"]];
-  const ref = {};   // conta → referência da célula do mês (função do índice do mês)
-  // 1 - M.O: MENSAL / ENCARGOS / TOTAL por mês
+  const ref = {};   // conta → função(mês) que devolve a célula da aba de lançamento
+  // 1 - M.O: blocos de 3 colunas por mês (MENSAL / ENCARGOS / TOTAL), como no modelo
   MO.getColumn(1).width = 14;
   ms.forEach((c, k) => {
-    const c0 = 1 + k * 3; MO.mergeCells(1, c0 + 1, 1, c0 + 3); MO.getCell(1, c0 + 1).value = dataMes(c); est(MO.getCell(1, c0 + 1), { b:true, fmt:"mmm/yy", fill:CL });
-    ["MENSAL","ENCARGOS","TOTAL"].forEach((t, j) => { MO.getColumn(c0 + 1 + j).width = 14; MO.getCell(2, c0 + 1 + j).value = t; est(MO.getCell(2, c0 + 1 + j), { b:true, fill:CL }); });
+    const c0 = 1 + k * 3;
+    MO.getCell(1, c0 + 1).value = dataMes(c); est(MO.getCell(1, c0 + 1), { b:true, fmt:"mmm/yy", fill:fundo(c, CL) });
+    MO.getCell(1, c0 + 2).value = tipo(c); est(MO.getCell(1, c0 + 2), { b:true, fill:fundo(c, CL) }); est(MO.getCell(1, c0 + 3), { fill:fundo(c, CL) });
+    ["MENSAL","ENCARGOS","TOTAL"].forEach((t, j) => { MO.getColumn(c0 + 1 + j).width = 14; MO.getCell(2, c0 + 1 + j).value = t; est(MO.getCell(2, c0 + 1 + j), { b:true, fill:fundo(c, CL) }); });
     [["DIRETA","1.1",cfg.encDir],["INDIRETA","1.2",cfg.encInd]].forEach(([rot, cod, enc], j) => {
       const r = 3 + j; MO.getCell(r, 1).value = rot; est(MO.getCell(r, 1), { b:true, h:"left" });
-      MO.getCell(r, c0 + 1).value = r2(ix[c + "|" + cod] || 0); est(MO.getCell(r, c0 + 1), { fmt:MOE });
-      MO.getCell(r, c0 + 2).value = enc / 100; est(MO.getCell(r, c0 + 2), { fmt:"0.00%" });
-      MO.getCell(r, c0 + 3).value = { formula:`${L(c0)}${r}*${L(c0 + 1)}${r}+${L(c0)}${r}` }; est(MO.getCell(r, c0 + 3), { fmt:MOE, b:true });
+      MO.getCell(r, c0 + 1).value = r2(ix[c + "|" + cod] || 0); est(MO.getCell(r, c0 + 1), { fmt:MOE, fill:fundo(c) });
+      MO.getCell(r, c0 + 2).value = r2(enc / 100 * 10000) / 10000; est(MO.getCell(r, c0 + 2), { fmt:"0.0000", fill:fundo(c) });
+      MO.getCell(r, c0 + 3).value = { formula:`${L(c0)}${r}*${L(c0 + 1)}${r}+${L(c0)}${r}` }; est(MO.getCell(r, c0 + 3), { fmt:MOE, b:true, fill:fundo(c) });
     });
   });
   ref["1.1"] = k => `'1 - M.O'!${L(3 + k * 3)}3`; ref["1.2"] = k => `'1 - M.O'!${L(3 + k * 3)}4`;
+  // abas 2 a 5.6: linha 1 = mês, linha 2 = REAL/PREVISTO, depois as contas do grupo (subitens somados no item)
   for (const [aba, pai] of DET){
     const ws = wb.addWorksheet(aba); ws.getColumn(1).width = 40;
-    ws.getCell(2, 1).value = contaPlano(pai).nome; est(ws.getCell(2, 1), { b:true, fill:CL, h:"left" });
-    ms.forEach((c, k) => { ws.getColumn(k + 2).width = 15; ws.getCell(1, k + 2).value = dataMes(c); est(ws.getCell(1, k + 2), { b:true, fmt:"mmm/yy", fill:CL });
-      ws.getCell(2, k + 2).value = "REAL"; est(ws.getCell(2, k + 2), { b:true, fill:CL }); });
+    est(ws.getCell(1, 1), {}); est(ws.getCell(2, 1), {});
+    ms.forEach((c, k) => { ws.getColumn(k + 2).width = 15; ws.getCell(1, k + 2).value = dataMes(c); est(ws.getCell(1, k + 2), { b:true, fmt:"mmm/yy", fill:fundo(c, CL) });
+      ws.getCell(2, k + 2).value = tipo(c); est(ws.getCell(2, k + 2), { b:true, fill:fundo(c, CL) }); });
     const desc = PLANO_CUSTEIO.filter(c => c.cod.startsWith(pai + "."));
     const linha = {}; desc.forEach((c, j) => linha[c.cod] = 3 + j);
     for (const c of desc){
       const r = linha[c.cod], fol = contaFolha(c.cod), niv = c.cod.split(".").length - pai.split(".").length;
-      ws.getCell(r, 1).value = (niv > 1 ? "   " : "") + c.nome; est(ws.getCell(r, 1), { h:"left", b:!fol });
+      ws.getCell(r, 1).value = c.nome; est(ws.getCell(r, 1), { h:"left", b:!fol }); if (niv > 1) ws.getCell(r, 1).alignment = { horizontal:"left", indent:2, vertical:"middle" };
       ms.forEach((m, k) => {
         const cell = ws.getCell(r, k + 2);
         cell.value = fol ? r2(ix[m + "|" + c.cod] || 0) : { formula:filhosConta(c.cod).map(f => `${L(k + 1)}${linha[f.cod]}`).join("+") };
-        est(cell, { fmt:MOE, b:!fol });
+        est(cell, { fmt:MOE, b:!fol, fill:fundo(m) });
       });
       ref[c.cod] = k => `'${aba}'!${L(k + 1)}${linha[c.cod]}`;
     }
   }
-  // CUSTEIO: estrutura do plano, cada linha puxa da aba de lançamento ou soma as filhas
-  CUS.getColumn(1).width = 10; CUS.getColumn(2).width = 40; CUS.getColumn(3).width = 9;
-  CUS.mergeCells(1, 1, 1, 3 + ms.length); CUS.getCell(1, 1).value = `CUSTEIO REALIZADO\nOBRA ${o.nome}`; est(CUS.getCell(1, 1), { b:true, wrap:true }); CUS.getRow(1).height = 34;
+  // CUSTEIO: como no modelo, até o 3º nível (os subitens ficam nas abas de lançamento)
+  const linhasCus = PLANO_CUSTEIO.filter(c => c.cod.split(".").length <= 3);
+  CUS.getColumn(1).width = 9; CUS.getColumn(2).width = 36; CUS.getColumn(3).width = 8;
+  CUS.getCell(1, 2).value = `CUSTEIO PREVISTO E REALIZADO\nOBRA ${o.nome}`; est(CUS.getCell(1, 2), { b:true, wrap:true, h:"left" }); CUS.getRow(1).height = 32;
   ["COD.","DESCRIÇÃO",""].forEach((t, j) => { CUS.getCell(2, j + 1).value = t; est(CUS.getCell(2, j + 1), { b:true, fill:AZ, cor:"FFFFFFFF" }); });
-  ms.forEach((c, k) => { CUS.getColumn(k + 4).width = 15; CUS.getCell(2, k + 4).value = compBR(c); est(CUS.getCell(2, k + 4), { b:true, fill:AZ, cor:"FFFFFFFF" }); });
-  const linC = {}; PLANO_CUSTEIO.forEach((c, j) => linC[c.cod] = 5 + j);
+  ms.forEach((c, k) => { CUS.getColumn(k + 4).width = 15; CUS.getCell(2, k + 4).value = compBR(c) + (mesReal(c) ? "" : " (P)"); est(CUS.getCell(2, k + 4), { b:true, fill:mesReal(c) ? AZ : "FFBF8F00", cor:"FFFFFFFF" }); });
+  const linC = {}; linhasCus.forEach((c, j) => linC[c.cod] = 5 + j);
   const topo = PLANO_CUSTEIO.filter(c => !c.cod.includes("."));
   CUS.getCell(3, 1).value = "CUSTO ACUMULADO"; CUS.getCell(4, 1).value = "CUSTO MÊS";
   [3, 4].forEach(r => { CUS.mergeCells(r, 1, r, 3); est(CUS.getCell(r, 1), { b:true, h:"left", fill:CL }); });
   ms.forEach((m, k) => {
     const col = L(k + 3);
-    CUS.getCell(4, k + 4).value = { formula:topo.map(t => `${col}${linC[t.cod]}`).join("+") }; est(CUS.getCell(4, k + 4), { fmt:MOE, b:true, fill:CL });
-    CUS.getCell(3, k + 4).value = { formula:k ? `${L(k + 2)}3+${col}4` : `${col}4` }; est(CUS.getCell(3, k + 4), { fmt:MOE, b:true, fill:CL });
+    CUS.getCell(4, k + 4).value = { formula:`SUM(${topo.map(t => `${col}${linC[t.cod]}`).join(",")})` }; est(CUS.getCell(4, k + 4), { fmt:MOE, b:true, fill:CL });
+    CUS.getCell(3, k + 4).value = { formula:k ? `${col}4+${L(k + 2)}3` : `${col}4` }; est(CUS.getCell(3, k + 4), { fmt:MOE, b:true, fill:CL });
   });
-  for (const c of PLANO_CUSTEIO){
+  for (const c of linhasCus){
     const r = linC[c.cod], niv = c.cod.split(".").length;
     CUS.getCell(r, 1).value = c.cod; CUS.getCell(r, 2).value = c.nome;
     est(CUS.getCell(r, 1), { b:niv === 1, h:"left", fill:niv === 1 ? CL : undefined }); est(CUS.getCell(r, 2), { b:niv <= 2, h:"left", fill:niv === 1 ? CL : undefined });
-    const cc = CUS.getCell(r, 3); est(cc, { fmt:"0.00%" });
-    if (c.cod === "5.3.1"){ cc.value = cfg.manutEq / 100; }
+    const cc = CUS.getCell(r, 3); est(cc, { fmt:"0%" }); if (c.cod === "5.3.1") cc.value = cfg.manutEq / 100;
     ms.forEach((m, k) => {
-      const cell = CUS.getCell(r, k + 4), col = L(k + 3);
-      if (ref[c.cod]) cell.value = { formula: c.cod === "5.3.1" ? `${ref[c.cod](k)}+$C${r}*${col}${linC["2.1"]}` : ref[c.cod](k) };
-      else cell.value = { formula:filhosConta(c.cod).map(f => `${col}${linC[f.cod]}`).join("+") || "0" };
-      est(cell, { fmt:MOE, b:niv === 1, fill:niv === 1 ? CL : undefined });
+      const cell = CUS.getCell(r, k + 4), col = L(k + 3), filhos = filhosConta(c.cod);
+      if (c.cod === "5.3.1") cell.value = { formula:`$C${r}*${col}${linC["2.1"]}+${ref[c.cod](k)}` };
+      else if (ref[c.cod] && (niv === 3 || !filhos.length || filhos.some(f => !linC[f.cod]))) cell.value = { formula:ref[c.cod](k) };
+      else cell.value = { formula:`SUM(${filhos.map(f => `${col}${linC[f.cod]}`).join(",")})` };
+      est(cell, { fmt:MOE, b:niv === 1, fill:niv === 1 ? CL : fundo(m) });
     });
   }
-  // a manutenção de equipamentos soma o % da locação direta: a aba 5.3 mostra só o lançado, o pai 5.3 no CUSTEIO soma as linhas do CUSTEIO
-  ms.forEach((m, k) => { const col = L(k + 3);
-    CUS.getCell(linC["5.3"], k + 4).value = { formula:`${col}${linC["5.3.1"]}+${col}${linC["5.3.2"]}` };
-    CUS.getCell(linC["5"], k + 4).value = { formula:filhosConta("5").map(f => `${col}${linC[f.cod]}`).join("+") }; });
-  // RESULTADO
+  // comparativo previsto × real (linhas 42-44 do modelo): só nos meses fechados
+  const rP = 5 + linhasCus.length + 1;
+  [["CUSTO PREVISTO (ORÇAMENTO)", (k, m) => mesReal(m) ? custoTotal(m, px) : null],
+   ["DIFERENÇA (PREVISTO − REAL)", (k, m) => mesReal(m) ? { formula:`${L(k + 3)}${rP}-${L(k + 3)}4` } : null],
+   ["DIFERENÇA (%)", (k, m) => mesReal(m) ? { formula:`IF(${L(k + 3)}${rP}=0,0,${L(k + 3)}${rP + 1}/${L(k + 3)}${rP})` } : null]].forEach(([rot, f], j) => {
+    CUS.mergeCells(rP + j, 1, rP + j, 3); CUS.getCell(rP + j, 1).value = rot; est(CUS.getCell(rP + j, 1), { b:true, h:"left" });
+    ms.forEach((m, k) => { const cell = CUS.getCell(rP + j, k + 4); const v = f(k, m); if (v !== null) cell.value = v; est(cell, { fmt:j === 2 ? "0.00%" : MOE }); });
+  });
+  // RESULTADO (mesma estrutura do modelo, linhas 3 a 22)
   RES.getColumn(1).width = 40;
-  RES.mergeCells(1, 1, 1, 1 + ms.length); RES.getCell(1, 1).value = `RELATORIO FINANCEIRO\nOBRA ${o.nome}`; est(RES.getCell(1, 1), { b:true, wrap:true }); RES.getRow(1).height = 34;
+  RES.getCell(1, 2).value = `RELATORIO FINANCEIRO\nOBRA ${o.nome}`; est(RES.getCell(1, 2), { b:true, wrap:true, h:"left" }); RES.getRow(1).height = 32;
+  if (ms.length > 1) RES.mergeCells(1, 2, 1, Math.min(1 + ms.length, 8));
   RES.getCell(2, 1).value = "RELATORIO FINANCEIRO"; est(RES.getCell(2, 1), { b:true, fill:AZ, cor:"FFFFFFFF", h:"left" });
-  ms.forEach((c, k) => { RES.getColumn(k + 2).width = 16; RES.getCell(2, k + 2).value = dataMes(c); est(RES.getCell(2, k + 2), { b:true, fill:AZ, cor:"FFFFFFFF", fmt:"mmm/yy" }); });
+  ms.forEach((c, k) => { RES.getColumn(k + 2).width = 16; RES.getCell(2, k + 2).value = dataMes(c); est(RES.getCell(2, k + 2), { b:true, fill:mesReal(c) ? AZ : "FFBF8F00", cor:"FFFFFFFF", fmt:"mmm/yy" }); });
   const C = cod => k => `CUSTEIO!${L(k + 3)}${linC[cod]}`;
   const linhas = [
     ["1 - FATURAMENTO", k => `${L(k+1)}4+${L(k+1)}5`, true],
@@ -4562,9 +4638,11 @@ async function exportarCusteio(){
     const r = 3 + j; if (!ln) return;
     const [rot, f, b, valor, fmt] = ln;
     RES.getCell(r, 1).value = rot; est(RES.getCell(r, 1), { b, h:"left", fill:b ? CL : undefined });
-    ms.forEach((m, k) => { const cell = RES.getCell(r, k + 2); cell.value = valor ? f(k) : { formula:f(k) }; est(cell, { fmt:fmt || MOE, b, fill:b ? CL : undefined }); });
+    ms.forEach((m, k) => { const cell = RES.getCell(r, k + 2); cell.value = valor ? f(k) : { formula:f(k) }; est(cell, { fmt:fmt || MOE, b, fill:b ? CL : fundo(m) }); });
   });
-  // LANÇAMENTOS (detalhe para conferência)
+  RES.getCell(24, 1).value = "Meses em amarelo = PREVISTO (orçamento e medição prevista); demais = REAL (gastos lançados e medições).";
+  RES.getCell(24, 1).font = { name:"Calibri", size:9, italic:true };
+  // LANÇAMENTOS (detalhe do realizado, para conferência)
   const LA = wb.addWorksheet("LANÇAMENTOS");
   const cab = ["COMPETÊNCIA","DATA","CONTA","DESCRIÇÃO DA CONTA","DESCRIÇÃO","FORNECEDOR","NF","VALOR","REEMBOLSÁVEL","ITEM DO CONTRATO","ORIGEM","LANÇADO POR"];
   [12,12,10,36,44,28,12,16,13,14,12,16].forEach((w, k) => LA.getColumn(k + 1).width = w);
@@ -4578,8 +4656,8 @@ async function exportarCusteio(){
   });
   [RES, CUS].forEach(ws => { ws.pageSetup = { paperSize:9, orientation:"landscape", fitToPage:true, fitToWidth:1, fitToHeight:0 }; ws.views = [{ state:"frozen", xSplit:ws === CUS ? 3 : 1, ySplit:2 }]; });
   const buf = await wb.xlsx.writeBuffer();
-  baixar(new Blob([buf], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `Resultado e Custeio - ${o.nome} - ${compBR(ms[ms.length - 1]).replace("/", "-")}.xlsx`);
-  toast("Custeio e Resultado exportados.");
+  baixar(new Blob([buf], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `Resultado e Custeio - ${o.nome} - ${compBR(ms[0]).replace("/", "-")} a ${compBR(ms[ms.length - 1]).replace("/", "-")}.xlsx`);
+  toast(`Custeio e Resultado exportados (${ms.length} meses).`);
 }
 
 /* ======================================================================
