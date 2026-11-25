@@ -129,6 +129,8 @@
          padding:10px 18px;border-radius:12px;transition:transform .3s;z-index:30;font-size:.88rem}
   #toast.on{transform:translateX(-50%) translateY(0)}
   .carregando{color:var(--muted);text-align:center;padding:40px}
+  a.fmt{font-size:10px;font-weight:700;padding:1px 6px;border:1px solid currentColor;border-radius:6px;margin-left:6px;opacity:.75;text-decoration:none}
+  a.fmt:hover{opacity:1}
 </style>
 </head>
 <body>
@@ -315,7 +317,7 @@ function secao(t, lista, essencial){
   if (!n && !essencial) return "";
   return `<details class="sec ${!n&&essencial?"falta":""}" ${n && n<=6 ? "open" : ""}>
     <summary>${n ? "📄" : "❌"} ${esc(t)} <span class="n">${n ? n+" arquivo"+(n>1?"s":"") : "não localizado"}</span></summary>
-    ${n ? "<ul>" + lista.map(d => `<li><a href="${esc(d.url)}" target="_blank" rel="noopener" title="${esc(d.nome)}">${esc(d.rotulo || d.nome)}</a>${d.versoes ? `<small title="Há outras versões do mesmo arquivo nas pastas">${d.versoes} versões</small>` : ""}<small>${fmt(d.data)}</small></li>`).join("") + "</ul>" : ""}
+    ${n ? "<ul>" + lista.map(d => `<li><a href="${esc(d.url)}" target="_blank" rel="noopener" title="${esc(d.nome)}">${esc(d.rotulo || d.nome)}</a>${(d.extras||[]).map(e => ` <a class="fmt" href="${esc(e.url)}" target="_blank" rel="noopener" title="${esc(e.nome)}">${esc(e.f)}</a>`).join("")}${d.versoes ? `<small title="Há outras versões do mesmo arquivo nas pastas">${d.versoes} versões</small>` : ""}<small>${fmt(d.data)}</small></li>`).join("") + "</ul>" : ""}
   </details>`;
 }
 function cartaoItem(i, aberto){
