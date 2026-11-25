@@ -104,6 +104,18 @@
   .sec li a{text-decoration:none;word-break:break-word} .sec li a:hover{text-decoration:underline}
   .sec li small{color:var(--muted);white-space:nowrap}
   .acoes{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  /* contratos dentro da adesão */
+  .item{border:1px solid var(--line);border-radius:14px;margin-bottom:14px;background:rgba(255,255,255,.015)}
+  .item>summary{list-style:none;cursor:pointer;padding:14px 16px;display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center}
+  .item>summary::-webkit-details-marker{display:none}
+  .item.principal{border-color:rgba(61,242,255,.45);box-shadow:0 0 18px rgba(0,163,218,.12)}
+  .item .tit{font-weight:700} .item .tit small{display:block;font-weight:500;color:var(--muted);font-size:.78rem;margin-top:2px}
+  .item .datas{grid-column:1/-1;color:var(--muted);font-size:.8rem}
+  .item .corpo{padding:0 16px 14px}
+  .tipo{font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);border:1px solid var(--line);border-radius:6px;padding:2px 6px;margin-right:6px;vertical-align:2px}
+  .valores{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:.8rem;color:var(--muted);margin:0 0 12px}
+  .valores b{color:var(--text);font-weight:600}
+  .grp-tit{font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:22px 0 10px}
 
   /* senha */
   #gate{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(5,11,20,.96)}
@@ -137,7 +149,7 @@
 
 <main>
   <h1>Atas de Registro de Preços</h1>
-  <p class="sub">Cada adesão com contrato, ordem de serviço, ART, medições, aditivos e o prazo de validade. Os documentos abrem no SharePoint da LM (precisa estar logado).</p>
+  <p class="sub">Cada município com a adesão principal e os contratos feitos dentro dela, cada um com o seu prazo e os seus documentos (contrato, OS, ART, medições, aditivos). Os documentos abrem no SharePoint da LM (precisa estar logado).</p>
 
   <section class="kpis" id="kpis"></section>
   <section class="maes" id="maes"></section>
@@ -155,11 +167,11 @@
 <script type="module">
 /* =========================================================================
    ATAS — Portal LM
-   Dados no Firestore (mesmo projeto da aba Obras):
-     coleção "atas_lm": documento "_meta" { atualizado, atas:[...] }
-                        + um documento por adesão (id = slug)
-   Atualização: abrir esta página com ?importar e escolher o arquivo .json
-   gerado a partir das pastas do SharePoint (o arquivo NÃO vai para o GitHub).
+   Dados no Firestore (mesmo projeto da aba Obras), coleção "atas_lm":
+     "_meta"            { atualizado, dataBaseQuadro, atas:[atas-mãe] }
+     um doc por município { municipio, atas, telefone, pasta, itens:[adesão principal + contratos], docsGerais }
+   Atualização: abrir esta página com ?importar e escolher o .json gerado a partir
+   das pastas do SharePoint e do Quadro de Obras (o arquivo NÃO vai para o GitHub).
    ========================================================================= */
 const SENHA = "LM12";
 const COL = "atas_lm";
@@ -176,6 +188,7 @@ const QS = new URLSearchParams(location.search);
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmt = s => s ? s.slice(0,10).split("-").reverse().join("/") : "—";
+const brl = v => v === null || v === undefined ? "—" : Number(v).toLocaleString("pt-BR", { style:"currency", currency:"BRL", maximumFractionDigits:0 });
 const norm = s => String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
 const hojeISO = () => new Date().toISOString().slice(0,10);
 const dias = s => s ? Math.round((new Date(s+"T12:00:00") - new Date(hojeISO()+"T12:00:00")) / 864e5) : null;
@@ -183,21 +196,28 @@ function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("on"); 
 
 const TIPOS = [
   ["contrato","Contrato"], ["os","Ordem de serviço"], ["art","ART"], ["cno","CNO"],
-  ["medicoes","Medições"], ["aditivos","Aditivos"], ["rescisao","Rescisão"]
+  ["medicoes","Medições"], ["aditivos","Aditivos"], ["rescisao","Rescisão"], ["auxiliares","Documentos auxiliares"]
 ];
 const ESSENCIAIS = ["contrato","os","art"];
 
-/* situação: vencida / vence em até 30 / até 90 / ok / sem data / rescindido */
 function status(a){
   const s = norm(a.situacao);
   if (s.includes("rescind")) return { k:"off", t:"Rescindido" };
   const d = dias(a.vencimento);
   if (s.includes("encerrad") && d === null) return { k:"bad", t:"Encerrada" };
   if (d === null) return { k:"off", t:"Sem data" };
-  if (d < 0) return { k:"bad", t:"Vencida" };
+  if (d < 0) return { k:"bad", t:"Vencido" };
   if (d <= 30) return { k:"bad", t:`Vence em ${d} d` };
   if (d <= 90) return { k:"warn", t:`Vence em ${d} d` };
   return { k:"ok", t:"Vigente" };
+}
+const PESO = { bad:0, warn:1, ok:2, off:3 };
+// situação do município = a do contrato mais urgente que ainda não venceu (se todos venceram, a do mais recente)
+function statusGrupo(g){
+  const vivos = g.itens.filter(i => status(i).k !== "off" && (dias(i.vencimento) ?? -1) >= 0);
+  if (vivos.length) return vivos.map(i => ({ i, s:status(i) })).sort((a,b) => dias(a.i.vencimento) - dias(b.i.vencimento))[0];
+  const todos = g.itens.map(i => ({ i, s:status(i) })).sort((a,b) => PESO[a.s.k] - PESO[b.s.k] || (b.i.vencimento||"").localeCompare(a.i.vencimento||""));
+  return todos[0] || { i:{}, s:{ k:"off", t:"Sem data" } };
 }
 
 /* ------------------------------ dados ------------------------------ */
@@ -209,52 +229,57 @@ async function initDb(){
 }
 async function carregar(){
   const snap = await fs.getDocs(fs.collection(db, COL));
-  let meta = { atas:[] }; const ades = [];
-  snap.forEach(d => { if (d.id === "_meta") meta = d.data(); else ades.push({ id:d.id, ...d.data() }); });
-  return { meta, ades };
+  let meta = { atas:[] }; const grupos = [];
+  snap.forEach(d => { if (d.id === "_meta") meta = d.data(); else if (d.data().itens) grupos.push({ id:d.id, ...d.data() }); });
+  return { meta, grupos };
 }
 async function importar(json){
   const dados = typeof json === "string" ? JSON.parse(json) : json;
+  if (!dados.grupos) throw new Error("arquivo no formato antigo");
   const atuais = await fs.getDocs(fs.collection(db, COL));
-  const novos = new Set(dados.adesoes.map(a => a.id));
+  const novos = new Set(dados.grupos.map(g => g.id));
   let lote = fs.writeBatch(db), n = 0;
-  const flush = async () => { await lote.commit(); lote = fs.writeBatch(db); n = 0; };
-  for (const d of atuais.docs) if (d.id !== "_meta" && !novos.has(d.id)) { lote.delete(d.ref); if (++n >= 400) await flush(); }
-  lote.set(fs.doc(db, COL, "_meta"), { atualizado: dados.atualizado, atas: dados.atas }); n++;
-  for (const a of dados.adesoes){ const { id, ...resto } = a; lote.set(fs.doc(db, COL, id), resto); if (++n >= 400) await flush(); }
+  const flush = async () => { if (n) await lote.commit(); lote = fs.writeBatch(db); n = 0; };
+  for (const d of atuais.docs) if (d.id !== "_meta" && !novos.has(d.id)) { lote.delete(d.ref); if (++n >= 50) await flush(); }
+  lote.set(fs.doc(db, COL, "_meta"), { atualizado: dados.atualizado, dataBaseQuadro: dados.dataBaseQuadro || null, atas: dados.atas }); n++;
+  for (const g of dados.grupos){ const { id, ...resto } = g; lote.set(fs.doc(db, COL, id), resto); if (++n >= 10) await flush(); }
   await flush();
-  return dados.adesoes.length;
+  return dados.grupos.length;
 }
 window.__importarAtas = importar;   // usado na atualização assistida
 
 /* ------------------------------ tela ------------------------------ */
-const S = { meta:{atas:[]}, ades:[], ata:null, filtro:null, busca:"" };
+const S = { meta:{atas:[]}, grupos:[], ata:null, filtro:null, busca:"" };
+const itensDe = g => g.itens || [];
+const todosItens = () => S.grupos.flatMap(g => itensDe(g).map(i => ({ ...i, _g:g })));
+const FILTROS = {
+  venc30:  i => { const d=dias(i.vencimento); return d!==null && d>=0 && d<=30 && status(i).k!=="off"; },
+  venc90:  i => { const d=dias(i.vencimento); return d!==null && d>30 && d<=90 && status(i).k!=="off"; },
+  vencidas:i => status(i).t==="Vencido",
+  vigentes:i => status(i).k==="ok",
+  semdata: i => status(i).t==="Sem data",
+  faltadoc:i => ESSENCIAIS.some(k => !(i.docs?.[k]||[]).length) && status(i).k!=="off"
+};
 
 function render(){
-  const { meta, ades } = S;
-  $("#upd").textContent = meta.atualizado ? "Atualizado em " + fmt(meta.atualizado) + " " + meta.atualizado.slice(11,16) : "";
-  // indicadores
-  const st = ades.map(a => status(a).k + (status(a).t.startsWith("Vence") && dias(a.vencimento) <= 30 ? "30" : ""));
-  const cont = { venc30: ades.filter(a => { const d=dias(a.vencimento); return d!==null && d>=0 && d<=30 && status(a).k!=="off"; }).length,
-                 venc90: ades.filter(a => { const d=dias(a.vencimento); return d!==null && d>30 && d<=90 && status(a).k!=="off"; }).length,
-                 vencidas: ades.filter(a => status(a).t==="Vencida").length,
-                 vigentes: ades.filter(a => status(a).k==="ok").length,
-                 semdata: ades.filter(a => status(a).t==="Sem data").length,
-                 faltadoc: ades.filter(a => ESSENCIAIS.some(k => !(a.docs?.[k]||[]).length) && status(a).k!=="off").length };
+  const { meta } = S;
+  $("#upd").textContent = (meta.atualizado ? "Atualizado em " + fmt(meta.atualizado) + " " + meta.atualizado.slice(11,16) : "") +
+                          (meta.dataBaseQuadro ? " · Quadro de Obras de " + meta.dataBaseQuadro : "");
+  const itens = todosItens();
   const K = [
-    ["venc30","bad","Vencem em até 30 dias"], ["venc90","warn","Vencem em 31 a 90 dias"], ["vencidas","bad","Vencidas"],
+    ["venc30","bad","Contratos que vencem em até 30 dias"], ["venc90","warn","Vencem em 31 a 90 dias"], ["vencidas","bad","Vencidos"],
     ["vigentes","ok","Vigentes"], ["semdata","off","Sem data de vencimento"], ["faltadoc","warn","Sem contrato, OS ou ART"]
   ];
-  $("#kpis").innerHTML = K.map(([k,c,l]) => `<div class="kpi ${c} ${S.filtro===k?"on":""}" data-k="${k}"><div class="v">${cont[k]}</div><div class="l">${l}</div></div>`).join("");
+  $("#kpis").innerHTML = K.map(([k,c,l]) => `<div class="kpi ${c} ${S.filtro===k?"on":""}" data-k="${k}"><div class="v">${itens.filter(FILTROS[k]).length}</div><div class="l">${l}</div></div>`).join("");
   $("#kpis").querySelectorAll(".kpi").forEach(el => el.onclick = () => { S.filtro = S.filtro===el.dataset.k ? null : el.dataset.k; render(); });
 
-  // atas-mãe
   $("#maes").innerHTML = meta.atas.map(m => {
-    const qtd = ades.filter(a => a.ata === m.id).length;
+    const mun = S.grupos.filter(g => (g.atas||[]).includes(m.id)).length;
+    const ctr = itens.filter(i => i.ata === m.id).length;
     const s = status(m);
-    return `<button class="mae ${S.ata===m.id?"on":""}" data-id="${esc(m.id)}">
+    return `<button class="mae ${S.ata===m.id?"on":""}" data-id="${esc(m.id)}" title="Clique para filtrar · duplo clique para ver os documentos da ata">
       <h3>${esc(m.nome)}</h3><p>${esc(m.processo||"")}${m.processo?" · ":""}${esc(m.gestor||"")}</p>
-      <div class="row">${m.situacao || m.vencimento ? `<span class="chip ${s.k}">${esc(m.situacao||s.t)}</span>` : "<span></span>"}<span class="upd">${qtd} adesão${qtd===1?"":"ões"}${m.vencimento?" · até "+fmt(m.vencimento):""}</span></div>
+      <div class="row">${m.situacao || m.vencimento ? `<span class="chip ${s.k}">${esc(m.situacao||s.t)}</span>` : "<span></span>"}<span class="upd">${mun} município${mun===1?"":"s"} · ${ctr} contrato${ctr===1?"":"s"}${m.vencimento?" · até "+fmt(m.vencimento):""}</span></div>
     </button>`;
   }).join("");
   $("#maes").querySelectorAll(".mae").forEach(el => {
@@ -262,65 +287,72 @@ function render(){
     el.ondblclick = () => abrirMae(el.dataset.id);
   });
 
-  // lista
-  let L = ades.slice();
-  if (S.ata) L = L.filter(a => a.ata === S.ata);
-  if (S.busca) L = L.filter(a => norm(a.municipio+" "+a.instrumento+" "+a.numero).includes(norm(S.busca)));
-  if (S.filtro){
-    const f = { venc30:a=>{const d=dias(a.vencimento);return d!==null&&d>=0&&d<=30&&status(a).k!=="off"},
-                venc90:a=>{const d=dias(a.vencimento);return d!==null&&d>30&&d<=90&&status(a).k!=="off"},
-                vencidas:a=>status(a).t==="Vencida", vigentes:a=>status(a).k==="ok", semdata:a=>status(a).t==="Sem data",
-                faltadoc:a=>ESSENCIAIS.some(k=>!(a.docs?.[k]||[]).length)&&status(a).k!=="off" }[S.filtro];
-    L = L.filter(f);
-  }
-  // primeiro o que está para vencer; depois vencidas, sem data e rescindidas
-  const ordem = a => { const d = dias(a.vencimento); const s = status(a).k; return s==="off" && d!==null ? 2e6 : d===null ? 1e6 : d < 0 ? 5e5 - d : d; };
+  let L = S.grupos.slice();
+  if (S.ata) L = L.filter(g => (g.atas||[]).includes(S.ata) || itensDe(g).some(i => i.ata === S.ata));
+  if (S.busca) L = L.filter(g => norm(g.municipio + " " + itensDe(g).map(i => i.numero+" "+i.nome).join(" ")).includes(norm(S.busca)));
+  if (S.filtro) L = L.filter(g => itensDe(g).some(FILTROS[S.filtro]));
+  const ordem = g => { const { i, s } = statusGrupo(g); const d = dias(i.vencimento); return s.k==="off" && d!==null ? 2e6 : d===null ? 1e6 : d<0 ? 5e5-d : d; };
   L.sort((a,b) => ordem(a) - ordem(b) || a.municipio.localeCompare(b.municipio));
-  $("#lista").innerHTML = L.length ? L.map(a => {
-    const s = status(a);
-    const pills = TIPOS.filter(([k]) => k!=="rescisao" || (a.docs?.rescisao||[]).length).map(([k,t]) => {
-      const n = (a.docs?.[k]||[]).length;
+  $("#lista").innerHTML = L.length ? L.map(g => {
+    const { i, s } = statusGrupo(g);
+    const nAd = itensDe(g).filter(x => x.tipo==="adesao").length, nCt = itensDe(g).filter(x => x.tipo==="contrato").length;
+    const pills = TIPOS.filter(([k]) => !["rescisao","auxiliares"].includes(k)).map(([k,t]) => {
+      const n = itensDe(g).reduce((a,x) => a + (x.docs?.[k]||[]).length, 0) + (g.docsGerais?.[k]||[]).length;
       return `<span class="pill ${n?"tem":(ESSENCIAIS.includes(k)?"falta":"")}" title="${t}: ${n}">${t.split(" ")[0]}${n?" "+n:""}</span>`;
     }).join("");
-    return `<button class="ad" data-id="${esc(a.id)}">
-      <div><div class="mun">${esc(a.municipio)}</div><div class="ins">${esc(a.ata)} · ${esc(a.instrumento)}</div></div>
+    return `<button class="ad" data-id="${esc(g.id)}">
+      <div><div class="mun">${esc(g.municipio)}</div><div class="ins">${esc((g.atas||[]).join(" · ")||"ata não identificada")} · ${nAd} adesão${nAd===1?"":"ões"}${nCt?" + "+nCt+" contrato"+(nCt>1?"s":""):""}</div></div>
       <div class="docs">${pills}</div>
-      <div class="venc">${fmt(a.vencimento)}<small>${a.inicio?"desde "+fmt(a.inicio):"vencimento"}</small></div>
+      <div class="venc">${fmt(i.vencimento)}<small>${esc(i.tipo==="contrato" ? (i.nome||"contrato") : "adesão "+(i.numero||""))}</small></div>
       <div style="text-align:right"><span class="chip ${s.k}">${esc(s.t)}</span></div>
     </button>`;
-  }).join("") : `<div class="vazio">Nenhuma adesão com esse filtro.</div>`;
+  }).join("") : `<div class="vazio">Nenhum município com esse filtro.</div>`;
   $("#lista").querySelectorAll(".ad").forEach(el => el.onclick = () => abrirFicha(el.dataset.id));
 }
 
 function secao(t, lista, essencial){
   const n = (lista||[]).length;
-  return `<details class="sec ${!n&&essencial?"falta":""}" ${n && n<=8 ? "open" : ""}>
-    <summary>${n ? "📄" : (essencial ? "❌" : "—")} ${esc(t)} <span class="n">${n ? n+" arquivo"+(n>1?"s":"") : (essencial ? "não localizado" : "nenhum")}</span></summary>
-    ${n ? "<ul>" + lista.map(d => `<li><a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.nome)}</a><small>${fmt(d.data)}</small></li>`).join("") + "</ul>" : ""}
+  if (!n && !essencial) return "";
+  return `<details class="sec ${!n&&essencial?"falta":""}" ${n && n<=6 ? "open" : ""}>
+    <summary>${n ? "📄" : "❌"} ${esc(t)} <span class="n">${n ? n+" arquivo"+(n>1?"s":"") : "não localizado"}</span></summary>
+    ${n ? "<ul>" + lista.map(d => `<li><a href="${esc(d.url)}" target="_blank" rel="noopener" title="${esc(d.nome)}">${esc(d.rotulo || d.nome)}</a>${d.versoes ? `<small title="Há outras versões do mesmo arquivo nas pastas">${d.versoes} versões</small>` : ""}<small>${fmt(d.data)}</small></li>`).join("") + "</ul>" : ""}
+  </details>`;
+}
+function cartaoItem(i, aberto){
+  const s = status(i), d = dias(i.vencimento);
+  const cor = { ok:"var(--ok)", warn:"var(--warn)", bad:"var(--bad)", off:"var(--off)" }[s.k];
+  let pct = null;
+  if (i.inicio && i.vencimento){ const t = dias(i.vencimento) - dias(i.inicio); if (t > 0) pct = Math.min(100, Math.max(0, 100*(t - Math.max(d,0))/t)); }
+  const val = [i.valor!=null?`Valor <b>${brl(i.valor)}</b>`:"", i.medido!=null?`Medido <b>${brl(i.medido)}</b>`:"", i.saldo!=null?`Saldo <b>${brl(i.saldo)}</b>`:""].filter(Boolean).join("");
+  return `<details class="item ${i.tipo==="adesao"?"principal":""}" ${aberto?"open":""}>
+    <summary>
+      <div class="tit"><span class="tipo">${i.tipo==="adesao"?"Adesão principal":"Contrato da adesão"}</span>${esc(i.numero ? "Nº "+i.numero : "nº não informado")}${i.ata?" · "+esc(i.ata):""}
+        <small>${esc(i.nome)}</small></div>
+      <span class="chip ${s.k}">${esc(s.t)}</span>
+      <div class="datas">Início ${fmt(i.inicio)} · Vencimento <b style="color:${cor}">${fmt(i.vencimento)}</b>${d!==null && s.k!=="off" ? ` · ${d<0?"vencido há "+(-d)+" dias":d+" dias para vencer"}` : ""}</div>
+    </summary>
+    <div class="corpo">
+      ${pct!==null ? `<div class="barra"><i style="width:${pct}%;background:${cor}"></i></div>` : ""}
+      ${val ? `<div class="valores">${val}</div>` : ""}
+      ${i.obs ? `<p class="obs">${esc(i.obs)}</p>` : ""}
+      ${TIPOS.map(([k,t]) => secao(t, i.docs?.[k], ESSENCIAIS.includes(k) && i.tipo==="adesao")).join("")}
+    </div>
   </details>`;
 }
 
 function abrirFicha(id){
-  const a = S.ades.find(x => x.id === id); if (!a) return;
-  const s = status(a), d = dias(a.vencimento);
-  let pct = null;
-  if (a.inicio && a.vencimento){ const t = dias(a.vencimento) - dias(a.inicio); pct = Math.min(100, Math.max(0, 100 * (t - Math.max(d,0)) / t)); }
-  const cor = { ok:"var(--ok)", warn:"var(--warn)", bad:"var(--bad)", off:"var(--off)" }[s.k];
+  const g = S.grupos.find(x => x.id === id); if (!g) return;
+  const itens = itensDe(g);
+  const principais = itens.filter(i => i.tipo==="adesao"), contratos = itens.filter(i => i.tipo==="contrato");
+  const temGerais = TIPOS.some(([k]) => (g.docsGerais?.[k]||[]).length);
   $("#ficha").innerHTML = `
-    <div class="f-top"><div><h2>${esc(a.municipio)} · ${esc(a.numero || "")}</h2><p>${esc(a.ata)} · ${esc(a.instrumento)}</p></div>
+    <div class="f-top"><div><h2>${esc(g.municipio)}</h2><p>${esc((g.atas||[]).join(" · ")||"ata não identificada")}${g.telefone?" · "+esc(g.telefone):""}</p></div>
       <button class="x" aria-label="Fechar">✕</button></div>
     <div class="f-body">
-      <div class="val">
-        <div><span>Situação</span><b><span class="chip ${s.k}">${esc(s.t)}</span></b></div>
-        <div><span>Início</span><b>${fmt(a.inicio)}</b></div>
-        <div><span>Vencimento</span><b>${fmt(a.vencimento)}</b></div>
-        <div><span>Dias para vencer</span><b style="color:${cor}">${d===null?"—":d<0?"vencido há "+(-d):d}</b></div>
-        ${a.telefone ? `<div><span>Telefone</span><b>${esc(a.telefone)}</b></div>` : ""}
-      </div>
-      ${pct!==null ? `<div class="barra"><i style="width:${pct}%;background:${cor}"></i></div>` : ""}
-      ${a.obs ? `<p class="obs">${esc(a.obs)}</p>` : ""}
-      ${TIPOS.filter(([k]) => k!=="rescisao" || (a.docs?.rescisao||[]).length).map(([k,t]) => secao(t, a.docs?.[k], ESSENCIAIS.includes(k))).join("")}
-      <div class="acoes">${a.pasta ? `<a class="btn pri" href="${esc(a.pasta)}" target="_blank" rel="noopener">Abrir pasta da obra no SharePoint</a>` : ""}</div>
+      ${principais.map((i,n) => cartaoItem(i, n===0)).join("")}
+      ${contratos.length ? `<div class="grp-tit">Contratos dentro da adesão (${contratos.length})</div>` + contratos.map(i => cartaoItem(i, false)).join("") : ""}
+      ${temGerais ? `<div class="grp-tit">Outros documentos do município (sem contrato identificado)</div>` + TIPOS.map(([k,t]) => secao(t, g.docsGerais?.[k], false)).join("") : ""}
+      <div class="acoes">${g.pasta ? `<a class="btn pri" href="${esc(g.pasta)}" target="_blank" rel="noopener">Abrir pasta da obra no SharePoint</a>` : ""}</div>
     </div>`;
   $("#ficha").querySelector(".x").onclick = () => $("#ficha").close();
   $("#ficha").showModal();
@@ -357,7 +389,7 @@ async function iniciar(){
     await initDb();
     if (QS.has("importar")) montarImportacao();
     Object.assign(S, await carregar());
-    if (!S.ades.length && !QS.has("importar")) $("#lista").innerHTML = `<div class="vazio">Ainda não há dados carregados.</div>`;
+    if (!S.grupos.length && !QS.has("importar")) $("#lista").innerHTML = `<div class="vazio">Ainda não há dados carregados.</div>`;
     else render();
   } catch (e) { console.error(e); $("#lista").innerHTML = `<div class="vazio">Não foi possível carregar os dados (${esc(e.message)}).</div>`; }
 }
@@ -367,7 +399,7 @@ function montarImportacao(){
   $("main").insertBefore(box, $("#kpis"));
   box.querySelector("input").onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
-    try { const n = await importar(await f.text()); Object.assign(S, await carregar()); render(); toast(n + " adesões importadas."); }
+    try { const n = await importar(await f.text()); Object.assign(S, await carregar()); render(); toast(n + " municípios importados."); }
     catch (err) { console.error(err); toast("Erro ao importar: " + err.message); }
   };
 }
