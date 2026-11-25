@@ -301,7 +301,7 @@ function render(){
       return `<span class="pill ${n?"tem":(ESSENCIAIS.includes(k)?"falta":"")}" title="${t}: ${n}">${t.split(" ")[0]}${n?" "+n:""}</span>`;
     }).join("");
     return `<button class="ad" data-id="${esc(g.id)}">
-      <div><div class="mun">${esc(g.municipio)}</div><div class="ins">${esc((g.atas||[]).join(" · ")||"ata não identificada")} · ${nAd} adesão${nAd===1?"":"ões"}${nCt?" + "+nCt+" contrato"+(nCt>1?"s":""):""}</div></div>
+      <div><div class="mun">${esc(g.municipio)}</div><div class="ins">${esc((g.atas||[]).join(" · ")||"ata não identificada")} · ${nAd} ${nAd===1?"adesão":"adesões"}${nCt?" + "+nCt+" contrato"+(nCt>1?"s":""):""}</div></div>
       <div class="docs">${pills}</div>
       <div class="venc">${fmt(i.vencimento)}<small>${esc(i.tipo==="contrato" ? (i.nome||"contrato") : "adesão "+(i.numero||""))}</small></div>
       <div style="text-align:right"><span class="chip ${s.k}">${esc(s.t)}</span></div>
