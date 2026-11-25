@@ -161,7 +161,7 @@
   </section>
 
   <div class="grid" id="grid"></div>
-  <p class="hint">Atalho: pressione <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> para abrir direto</p>
+  <p class="hint">Atalho: pressione <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> para abrir direto</p>
 </main>
 
 <footer>LM CONSTRUTORA · ENGENHARIA</footer>
@@ -197,7 +197,8 @@ LogoPDCA.montar(document.getElementById("lmHero"), { nome:true, loop:true, pausa
 const ICONES = {
   licitacoes: '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>',
   producao:   '<svg viewBox="0 0 24 24"><path d="M3 20h18"/><path d="M5 20V10l7-5 7 5v10"/><path d="M9 20v-6h6v6"/><path d="M12 5V2"/></svg>',
-  controle:   '<svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/><circle cx="4" cy="8" r="1.5"/><circle cx="16" cy="10" r="1.5"/></svg>'
+  controle:   '<svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/><circle cx="4" cy="8" r="1.5"/><circle cx="16" cy="10" r="1.5"/></svg>',
+  atas:       '<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 3v3h8V3"/><path d="M8 11l2 2 4-4"/><path d="M8 17h8"/></svg>'
 };
 
 const SISTEMAS = [
@@ -222,6 +223,13 @@ const SISTEMAS = [
     descricao: "Consolidado semanal de mão de obra e equipamentos por obra.",
     url: "https://engenharialm.github.io/controle-lm/",
     senha: null
+  },
+  {
+    nome: "Atas",
+    icone: "atas",
+    descricao: "Atas de registro de preços e adesões: contrato, OS, ART, medições, aditivos e vencimentos.",
+    url: "atas/",
+    senha: "LM12"
   }
 ];
 
@@ -237,7 +245,7 @@ const h = new Date().getHours();
 document.getElementById("saud").textContent = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
 
 /* ---------- texto digitando ---------- */
-const frases = ["Selecione o sistema que você quer acessar.", "Licitações · Obras · Controle", "Tudo da LM em um só lugar."];
+const frases = ["Selecione o sistema que você quer acessar.", "Licitações · Obras · Controle · Atas", "Tudo da LM em um só lugar."];
 const typed = document.getElementById("typed");
 if (reduz) typed.textContent = frases[0];
 else (function digitar(f = 0, i = 0, apagando = false){

@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atas — Portal LM</title>
+<link rel="icon" href="../favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --accent:#00A3DA; --accent-2:#0B83B2; --cyan:#3DF2FF; --violet:#7B5CFF;
+    --bg:#050B14; --bg-2:#0A1626; --glass:rgba(16,32,52,.6); --line:rgba(61,242,255,.16);
+    --text:#E6F4FF; --muted:#8AA4BC;
+    --ok:#2BFF9A; --warn:#FFC14D; --bad:#FF6B7A; --off:#7F8FA3;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Montserrat,"Segoe UI",system-ui,sans-serif;color:var(--text);min-height:100vh;
+       background:radial-gradient(600px 400px at 15% 0%,rgba(0,163,218,.18),transparent 70%),
+                  radial-gradient(500px 400px at 95% 100%,rgba(123,92,255,.14),transparent 70%),
+                  linear-gradient(180deg,var(--bg),var(--bg-2)) fixed}
+  a{color:var(--cyan)}
+  header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;justify-content:space-between;
+         padding:14px 24px;border-bottom:1px solid var(--line);backdrop-filter:blur(10px);background:rgba(5,11,20,.7)}
+  .brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}
+  .brand b{letter-spacing:.18em;font-size:.95rem}
+  .brand small{color:var(--cyan);letter-spacing:.2em;font-size:.72rem;border:1px solid var(--line);border-radius:20px;padding:3px 10px}
+  .upd{color:var(--muted);font-size:.78rem}
+  main{max-width:1180px;margin:0 auto;padding:28px 16px 60px}
+  h1{font-size:clamp(1.5rem,3.6vw,2.2rem);margin:0 0 4px;letter-spacing:.03em;
+     background:linear-gradient(90deg,#fff,var(--cyan) 50%,var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);margin:0 0 22px;font-size:.92rem}
+
+  /* indicadores */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:22px}
+  .kpi{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--glass);cursor:pointer;transition:border-color .2s,transform .2s}
+  .kpi:hover,.kpi.on{border-color:var(--cyan);transform:translateY(-2px)}
+  .kpi .v{font-size:1.7rem;font-weight:700}
+  .kpi .l{color:var(--muted);font-size:.78rem;letter-spacing:.04em}
+  .kpi.bad .v{color:var(--bad)} .kpi.warn .v{color:var(--warn)} .kpi.ok .v{color:var(--ok)} .kpi.off .v{color:var(--off)}
+
+  /* atas-mãe */
+  .maes{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-bottom:26px}
+  .mae{position:relative;text-align:left;font:inherit;color:inherit;border:1px solid var(--line);border-radius:16px;padding:16px 18px;
+       background:var(--glass);cursor:pointer;transition:border-color .2s,box-shadow .2s}
+  .mae:hover{border-color:rgba(61,242,255,.5)}
+  .mae.on{border-color:var(--cyan);box-shadow:0 0 24px rgba(0,163,218,.25)}
+  .mae h3{margin:0 0 6px;font-size:1.02rem;letter-spacing:.03em}
+  .mae p{margin:0;color:var(--muted);font-size:.8rem;line-height:1.45}
+  .mae .row{display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:8px}
+
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+        padding:4px 10px;border-radius:20px;border:1px solid;white-space:nowrap}
+  .chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+  .chip.ok{color:var(--ok);border-color:rgba(43,255,154,.35);background:rgba(43,255,154,.06)}
+  .chip.warn{color:var(--warn);border-color:rgba(255,193,77,.35);background:rgba(255,193,77,.06)}
+  .chip.bad{color:var(--bad);border-color:rgba(255,107,122,.4);background:rgba(255,107,122,.07)}
+  .chip.off{color:var(--off);border-color:rgba(127,143,163,.4);background:rgba(127,143,163,.07)}
+
+  /* filtros */
+  .tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+  .tools input{flex:1;min-width:200px;padding:11px 14px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.3);color:var(--text);font:inherit}
+  .tools input:focus{outline:none;border-color:var(--cyan)}
+  .btn{padding:9px 14px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--text);font:inherit;font-size:.82rem;cursor:pointer}
+  .btn:hover{border-color:var(--cyan)}
+  .btn.pri{background:linear-gradient(90deg,var(--accent-2),var(--violet));border:none}
+
+  /* lista de adesões */
+  .lista{display:grid;gap:10px}
+  .ad{display:grid;grid-template-columns:1.5fr 1fr 110px 130px;gap:12px;align-items:center;text-align:left;font:inherit;color:inherit;
+      border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--glass);cursor:pointer;transition:border-color .2s}
+  .ad:hover{border-color:rgba(61,242,255,.55)}
+  .ad .mun{font-weight:700}
+  .ad .ins{color:var(--muted);font-size:.8rem;margin-top:2px}
+  .ad .docs{display:flex;gap:5px;flex-wrap:wrap}
+  .pill{font-size:.66rem;padding:2px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+  .pill.tem{color:var(--text);border-color:rgba(61,242,255,.4);background:rgba(61,242,255,.07)}
+  .pill.falta{color:var(--bad);border-color:rgba(255,107,122,.35);text-decoration:line-through}
+  .ad .venc{font-size:.85rem} .ad .venc small{display:block;color:var(--muted);font-size:.72rem}
+  .vazio{color:var(--muted);text-align:center;padding:30px;border:1px dashed var(--line);border-radius:14px}
+  @media (max-width:760px){ .ad{grid-template-columns:1fr auto} .ad .docs{grid-column:1/-1} .ad .venc{text-align:right} }
+
+  /* ficha */
+  dialog.ficha{border:1px solid var(--line);border-radius:18px;padding:0;width:min(860px,calc(100vw - 24px));max-height:calc(100vh - 32px);
+         color:var(--text);background:rgba(8,18,32,.97);box-shadow:0 0 60px rgba(0,163,218,.25)}
+  dialog.ficha::backdrop{background:rgba(2,6,12,.72);backdrop-filter:blur(3px)}
+  .f-top{position:sticky;top:0;background:rgba(8,18,32,.98);padding:20px 22px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px}
+  .f-top h2{margin:0;font-size:1.25rem} .f-top p{margin:4px 0 0;color:var(--muted);font-size:.85rem}
+  .x{background:none;border:1px solid var(--line);color:var(--text);border-radius:10px;width:36px;height:36px;cursor:pointer;font-size:1.1rem;flex-shrink:0}
+  .f-body{padding:18px 22px 24px;overflow:auto}
+  .val{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+  .val div{border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .val b{display:block;font-size:1.05rem;margin-top:2px} .val span{color:var(--muted);font-size:.72rem;letter-spacing:.05em;text-transform:uppercase}
+  .barra{height:8px;border-radius:8px;background:rgba(255,255,255,.07);overflow:hidden;margin:-4px 0 18px}
+  .barra i{display:block;height:100%;border-radius:8px}
+  .obs{font-size:.82rem;color:var(--muted);border-left:3px solid var(--violet);padding:6px 12px;margin:0 0 18px;background:rgba(123,92,255,.06);border-radius:0 8px 8px 0}
+  .sec{margin-bottom:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .sec summary{list-style:none;cursor:pointer;padding:11px 14px;display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:.92rem}
+  .sec summary::-webkit-details-marker{display:none}
+  .sec summary .n{font-size:.75rem;color:var(--muted);font-weight:500}
+  .sec.falta summary{color:var(--bad)}
+  .sec ul{list-style:none;margin:0;padding:0 14px 10px}
+  .sec li{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid rgba(61,242,255,.07);font-size:.84rem}
+  .sec li a{text-decoration:none;word-break:break-word} .sec li a:hover{text-decoration:underline}
+  .sec li small{color:var(--muted);white-space:nowrap}
+  .acoes{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+
+  /* senha */
+  #gate{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(5,11,20,.96)}
+  #gate[hidden]{display:none}
+  #gate form{border:1px solid var(--line);border-radius:18px;padding:28px;width:min(360px,calc(100vw - 32px));background:rgba(10,22,38,.9)}
+  #gate h3{margin:0 0 6px;letter-spacing:.06em} #gate p{color:var(--muted);font-size:.85rem;margin:0 0 14px}
+  #gate input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.35);color:var(--text);font:inherit;letter-spacing:.2em}
+  #gate .err{color:var(--bad);font-size:.82rem;min-height:1.2em;margin:8px 0 0}
+  #gate .btn{width:100%;margin-top:12px;padding:11px}
+  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:rgba(10,22,38,.95);border:1px solid var(--line);
+         padding:10px 18px;border-radius:12px;transition:transform .3s;z-index:30;font-size:.88rem}
+  #toast.on{transform:translateX(-50%) translateY(0)}
+  .carregando{color:var(--muted);text-align:center;padding:40px}
+</style>
+</head>
+<body>
+<div id="gate" hidden>
+  <form id="gateForm">
+    <h3>ATAS · ACESSO RESTRITO</h3>
+    <p>Use a senha de acesso geral do Portal LM.</p>
+    <input id="gatePwd" type="password" placeholder="••••••" autocomplete="current-password">
+    <p class="err" id="gateErr"></p>
+    <button class="btn pri" type="submit">Entrar</button>
+  </form>
+</div>
+
+<header>
+  <a class="brand" href="../"><b>PORTAL&nbsp;LM</b><small>ATAS</small></a>
+  <span class="upd" id="upd"></span>
+</header>
+
+<main>
+  <h1>Atas de Registro de Preços</h1>
+  <p class="sub">Cada adesão com contrato, ordem de serviço, ART, medições, aditivos e o prazo de validade. Os documentos abrem no SharePoint da LM (precisa estar logado).</p>
+
+  <section class="kpis" id="kpis"></section>
+  <section class="maes" id="maes"></section>
+
+  <div class="tools">
+    <input id="busca" type="search" placeholder="Buscar município, contrato…">
+    <button class="btn" id="limpar">Limpar filtros</button>
+  </div>
+  <section class="lista" id="lista"><div class="carregando">Carregando…</div></section>
+</main>
+
+<dialog class="ficha" id="ficha"></dialog>
+<div id="toast"></div>
+
+<script type="module">
+/* =========================================================================
+   ATAS — Portal LM
+   Dados no Firestore (mesmo projeto da aba Obras):
+     coleção "atas_lm": documento "_meta" { atualizado, atas:[...] }
+                        + um documento por adesão (id = slug)
+   Atualização: abrir esta página com ?importar e escolher o arquivo .json
+   gerado a partir das pastas do SharePoint (o arquivo NÃO vai para o GitHub).
+   ========================================================================= */
+const SENHA = "LM12";
+const COL = "atas_lm";
+const firebaseConfig = {
+  apiKey: "AIzaSyDcNsjr0GdYPj70IF74G0hhhKc8qQ_jpkc",
+  authDomain: "lm-construtora-13c8f.firebaseapp.com",
+  projectId: "lm-construtora-13c8f",
+  storageBucket: "lm-construtora-13c8f.firebasestorage.app",
+  messagingSenderId: "384896887716",
+  appId: "1:384896887716:web:cfa633578043bda6a2af31"
+};
+const QS = new URLSearchParams(location.search);
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = s => s ? s.slice(0,10).split("-").reverse().join("/") : "—";
+const norm = s => String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+const hojeISO = () => new Date().toISOString().slice(0,10);
+const dias = s => s ? Math.round((new Date(s+"T12:00:00") - new Date(hojeISO()+"T12:00:00")) / 864e5) : null;
+function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("on"); clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.remove("on"),3200); }
+
+const TIPOS = [
+  ["contrato","Contrato"], ["os","Ordem de serviço"], ["art","ART"], ["cno","CNO"],
+  ["medicoes","Medições"], ["aditivos","Aditivos"], ["rescisao","Rescisão"]
+];
+const ESSENCIAIS = ["contrato","os","art"];
+
+/* situação: vencida / vence em até 30 / até 90 / ok / sem data / rescindido */
+function status(a){
+  const s = norm(a.situacao);
+  if (s.includes("rescind")) return { k:"off", t:"Rescindido" };
+  const d = dias(a.vencimento);
+  if (s.includes("encerrad") && d === null) return { k:"bad", t:"Encerrada" };
+  if (d === null) return { k:"off", t:"Sem data" };
+  if (d < 0) return { k:"bad", t:"Vencida" };
+  if (d <= 30) return { k:"bad", t:`Vence em ${d} d` };
+  if (d <= 90) return { k:"warn", t:`Vence em ${d} d` };
+  return { k:"ok", t:"Vigente" };
+}
+
+/* ------------------------------ dados ------------------------------ */
+let fs, db;
+async function initDb(){
+  const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+  fs = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+  db = fs.initializeFirestore(initializeApp(firebaseConfig), { experimentalAutoDetectLongPolling:true, useFetchStreams:false });
+}
+async function carregar(){
+  const snap = await fs.getDocs(fs.collection(db, COL));
+  let meta = { atas:[] }; const ades = [];
+  snap.forEach(d => { if (d.id === "_meta") meta = d.data(); else ades.push({ id:d.id, ...d.data() }); });
+  return { meta, ades };
+}
+async function importar(json){
+  const dados = typeof json === "string" ? JSON.parse(json) : json;
+  const atuais = await fs.getDocs(fs.collection(db, COL));
+  const novos = new Set(dados.adesoes.map(a => a.id));
+  let lote = fs.writeBatch(db), n = 0;
+  const flush = async () => { await lote.commit(); lote = fs.writeBatch(db); n = 0; };
+  for (const d of atuais.docs) if (d.id !== "_meta" && !novos.has(d.id)) { lote.delete(d.ref); if (++n >= 400) await flush(); }
+  lote.set(fs.doc(db, COL, "_meta"), { atualizado: dados.atualizado, atas: dados.atas }); n++;
+  for (const a of dados.adesoes){ const { id, ...resto } = a; lote.set(fs.doc(db, COL, id), resto); if (++n >= 400) await flush(); }
+  await flush();
+  return dados.adesoes.length;
+}
+window.__importarAtas = importar;   // usado na atualização assistida
+
+/* ------------------------------ tela ------------------------------ */
+const S = { meta:{atas:[]}, ades:[], ata:null, filtro:null, busca:"" };
+
+function render(){
+  const { meta, ades } = S;
+  $("#upd").textContent = meta.atualizado ? "Atualizado em " + fmt(meta.atualizado) + " " + meta.atualizado.slice(11,16) : "";
+  // indicadores
+  const st = ades.map(a => status(a).k + (status(a).t.startsWith("Vence") && dias(a.vencimento) <= 30 ? "30" : ""));
+  const cont = { venc30: ades.filter(a => { const d=dias(a.vencimento); return d!==null && d>=0 && d<=30 && status(a).k!=="off"; }).length,
+                 venc90: ades.filter(a => { const d=dias(a.vencimento); return d!==null && d>30 && d<=90 && status(a).k!=="off"; }).length,
+                 vencidas: ades.filter(a => status(a).t==="Vencida").length,
+                 vigentes: ades.filter(a => status(a).k==="ok").length,
+                 semdata: ades.filter(a => status(a).t==="Sem data").length,
+                 faltadoc: ades.filter(a => ESSENCIAIS.some(k => !(a.docs?.[k]||[]).length) && status(a).k!=="off").length };
+  const K = [
+    ["venc30","bad","Vencem em até 30 dias"], ["venc90","warn","Vencem em 31 a 90 dias"], ["vencidas","bad","Vencidas"],
+    ["vigentes","ok","Vigentes"], ["semdata","off","Sem data de vencimento"], ["faltadoc","warn","Sem contrato, OS ou ART"]
+  ];
+  $("#kpis").innerHTML = K.map(([k,c,l]) => `<div class="kpi ${c} ${S.filtro===k?"on":""}" data-k="${k}"><div class="v">${cont[k]}</div><div class="l">${l}</div></div>`).join("");
+  $("#kpis").querySelectorAll(".kpi").forEach(el => el.onclick = () => { S.filtro = S.filtro===el.dataset.k ? null : el.dataset.k; render(); });
+
+  // atas-mãe
+  $("#maes").innerHTML = meta.atas.map(m => {
+    const qtd = ades.filter(a => a.ata === m.id).length;
+    const s = status(m);
+    return `<button class="mae ${S.ata===m.id?"on":""}" data-id="${esc(m.id)}">
+      <h3>${esc(m.nome)}</h3><p>${esc(m.processo||"")}${m.processo?" · ":""}${esc(m.gestor||"")}</p>
+      <div class="row">${m.situacao || m.vencimento ? `<span class="chip ${s.k}">${esc(m.situacao||s.t)}</span>` : "<span></span>"}<span class="upd">${qtd} adesão${qtd===1?"":"ões"}${m.vencimento?" · até "+fmt(m.vencimento):""}</span></div>
+    </button>`;
+  }).join("");
+  $("#maes").querySelectorAll(".mae").forEach(el => {
+    el.onclick = e => { if (e.detail === 2) return; S.ata = S.ata===el.dataset.id ? null : el.dataset.id; render(); };
+    el.ondblclick = () => abrirMae(el.dataset.id);
+  });
+
+  // lista
+  let L = ades.slice();
+  if (S.ata) L = L.filter(a => a.ata === S.ata);
+  if (S.busca) L = L.filter(a => norm(a.municipio+" "+a.instrumento+" "+a.numero).includes(norm(S.busca)));
+  if (S.filtro){
+    const f = { venc30:a=>{const d=dias(a.vencimento);return d!==null&&d>=0&&d<=30&&status(a).k!=="off"},
+                venc90:a=>{const d=dias(a.vencimento);return d!==null&&d>30&&d<=90&&status(a).k!=="off"},
+                vencidas:a=>status(a).t==="Vencida", vigentes:a=>status(a).k==="ok", semdata:a=>status(a).t==="Sem data",
+                faltadoc:a=>ESSENCIAIS.some(k=>!(a.docs?.[k]||[]).length)&&status(a).k!=="off" }[S.filtro];
+    L = L.filter(f);
+  }
+  // primeiro o que está para vencer; depois vencidas, sem data e rescindidas
+  const ordem = a => { const d = dias(a.vencimento); const s = status(a).k; return s==="off" && d!==null ? 2e6 : d===null ? 1e6 : d < 0 ? 5e5 - d : d; };
+  L.sort((a,b) => ordem(a) - ordem(b) || a.municipio.localeCompare(b.municipio));
+  $("#lista").innerHTML = L.length ? L.map(a => {
+    const s = status(a);
+    const pills = TIPOS.filter(([k]) => k!=="rescisao" || (a.docs?.rescisao||[]).length).map(([k,t]) => {
+      const n = (a.docs?.[k]||[]).length;
+      return `<span class="pill ${n?"tem":(ESSENCIAIS.includes(k)?"falta":"")}" title="${t}: ${n}">${t.split(" ")[0]}${n?" "+n:""}</span>`;
+    }).join("");
+    return `<button class="ad" data-id="${esc(a.id)}">
+      <div><div class="mun">${esc(a.municipio)}</div><div class="ins">${esc(a.ata)} · ${esc(a.instrumento)}</div></div>
+      <div class="docs">${pills}</div>
+      <div class="venc">${fmt(a.vencimento)}<small>${a.inicio?"desde "+fmt(a.inicio):"vencimento"}</small></div>
+      <div style="text-align:right"><span class="chip ${s.k}">${esc(s.t)}</span></div>
+    </button>`;
+  }).join("") : `<div class="vazio">Nenhuma adesão com esse filtro.</div>`;
+  $("#lista").querySelectorAll(".ad").forEach(el => el.onclick = () => abrirFicha(el.dataset.id));
+}
+
+function secao(t, lista, essencial){
+  const n = (lista||[]).length;
+  return `<details class="sec ${!n&&essencial?"falta":""}" ${n && n<=8 ? "open" : ""}>
+    <summary>${n ? "📄" : (essencial ? "❌" : "—")} ${esc(t)} <span class="n">${n ? n+" arquivo"+(n>1?"s":"") : (essencial ? "não localizado" : "nenhum")}</span></summary>
+    ${n ? "<ul>" + lista.map(d => `<li><a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.nome)}</a><small>${fmt(d.data)}</small></li>`).join("") + "</ul>" : ""}
+  </details>`;
+}
+
+function abrirFicha(id){
+  const a = S.ades.find(x => x.id === id); if (!a) return;
+  const s = status(a), d = dias(a.vencimento);
+  let pct = null;
+  if (a.inicio && a.vencimento){ const t = dias(a.vencimento) - dias(a.inicio); pct = Math.min(100, Math.max(0, 100 * (t - Math.max(d,0)) / t)); }
+  const cor = { ok:"var(--ok)", warn:"var(--warn)", bad:"var(--bad)", off:"var(--off)" }[s.k];
+  $("#ficha").innerHTML = `
+    <div class="f-top"><div><h2>${esc(a.municipio)} · ${esc(a.numero || "")}</h2><p>${esc(a.ata)} · ${esc(a.instrumento)}</p></div>
+      <button class="x" aria-label="Fechar">✕</button></div>
+    <div class="f-body">
+      <div class="val">
+        <div><span>Situação</span><b><span class="chip ${s.k}">${esc(s.t)}</span></b></div>
+        <div><span>Início</span><b>${fmt(a.inicio)}</b></div>
+        <div><span>Vencimento</span><b>${fmt(a.vencimento)}</b></div>
+        <div><span>Dias para vencer</span><b style="color:${cor}">${d===null?"—":d<0?"vencido há "+(-d):d}</b></div>
+        ${a.telefone ? `<div><span>Telefone</span><b>${esc(a.telefone)}</b></div>` : ""}
+      </div>
+      ${pct!==null ? `<div class="barra"><i style="width:${pct}%;background:${cor}"></i></div>` : ""}
+      ${a.obs ? `<p class="obs">${esc(a.obs)}</p>` : ""}
+      ${TIPOS.filter(([k]) => k!=="rescisao" || (a.docs?.rescisao||[]).length).map(([k,t]) => secao(t, a.docs?.[k], ESSENCIAIS.includes(k))).join("")}
+      <div class="acoes">${a.pasta ? `<a class="btn pri" href="${esc(a.pasta)}" target="_blank" rel="noopener">Abrir pasta da obra no SharePoint</a>` : ""}</div>
+    </div>`;
+  $("#ficha").querySelector(".x").onclick = () => $("#ficha").close();
+  $("#ficha").showModal();
+}
+
+function abrirMae(id){
+  const m = S.meta.atas.find(x => x.id === id); if (!m) return;
+  const s = status(m);
+  $("#ficha").innerHTML = `
+    <div class="f-top"><div><h2>${esc(m.nome)}</h2><p>${esc(m.processo||"")} · ${esc(m.gestor||"")}</p></div><button class="x" aria-label="Fechar">✕</button></div>
+    <div class="f-body">
+      <div class="val">
+        <div><span>Situação</span><b><span class="chip ${s.k}">${esc(m.situacao||s.t)}</span></b></div>
+        <div><span>Assinatura</span><b>${fmt(m.assinatura)}</b></div>
+        <div><span>Vencimento</span><b>${fmt(m.vencimento)}</b></div>
+        <div><span>Dias para vencer</span><b>${m.vencimento ? (dias(m.vencimento)<0 ? "encerrada" : dias(m.vencimento)) : "—"}</b></div>
+      </div>
+      ${m.obs ? `<p class="obs">${esc(m.obs)}</p>` : ""}
+      ${secao("Documentos da ata", m.docs, true)}
+      <div class="acoes">${m.pasta ? `<a class="btn pri" href="${esc(m.pasta)}" target="_blank" rel="noopener">Abrir pasta da ata no SharePoint</a>` : ""}</div>
+    </div>`;
+  $("#ficha").querySelector(".x").onclick = () => $("#ficha").close();
+  $("#ficha").showModal();
+}
+$("#ficha").addEventListener("click", e => { if (e.target === $("#ficha")) $("#ficha").close(); });
+
+$("#busca").addEventListener("input", e => { S.busca = e.target.value; render(); });
+$("#limpar").onclick = () => { S.ata = null; S.filtro = null; S.busca = ""; $("#busca").value = ""; render(); };
+
+/* ------------------------------ início ------------------------------ */
+function liberado(){ try { return sessionStorage.getItem("atas-ok") === "1" || sessionStorage.getItem("portal-ok-3") === "1"; } catch { return false; } }
+async function iniciar(){
+  try {
+    await initDb();
+    if (QS.has("importar")) montarImportacao();
+    Object.assign(S, await carregar());
+    if (!S.ades.length && !QS.has("importar")) $("#lista").innerHTML = `<div class="vazio">Ainda não há dados carregados.</div>`;
+    else render();
+  } catch (e) { console.error(e); $("#lista").innerHTML = `<div class="vazio">Não foi possível carregar os dados (${esc(e.message)}).</div>`; }
+}
+function montarImportacao(){
+  const box = document.createElement("div"); box.className = "tools";
+  box.innerHTML = `<label class="btn pri">Importar dados (.json)<input type="file" accept=".json" hidden></label><span class="upd">Substitui os dados atuais pelos do arquivo.</span>`;
+  $("main").insertBefore(box, $("#kpis"));
+  box.querySelector("input").onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try { const n = await importar(await f.text()); Object.assign(S, await carregar()); render(); toast(n + " adesões importadas."); }
+    catch (err) { console.error(err); toast("Erro ao importar: " + err.message); }
+  };
+}
+if (liberado()) iniciar();
+else {
+  $("#gate").hidden = false; $("#gatePwd").focus();
+  $("#gateForm").onsubmit = e => {
+    e.preventDefault();
+    if ($("#gatePwd").value === SENHA){ try { sessionStorage.setItem("atas-ok","1"); } catch {} $("#gate").hidden = true; iniciar(); }
+    else { $("#gateErr").textContent = "Senha incorreta."; $("#gatePwd").select(); }
+  };
+}
+</script>
+</body>
+</html>
